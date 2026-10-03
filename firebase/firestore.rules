@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// ArchTrip G1: each signed-in user can only access users/{uid}/trips/*.
+// ArchTrip: each signed-in user can only access users/{uid}/trips/** (Trips and their Events).
 // Everything else is denied by default.
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -19,11 +19,38 @@ service cloud.firestore {
         && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
     }
 
+    function isValidEvent(tripId, eventId) {
+      let d = request.resource.data;
+      let fields = ['id', 'tripId', 'type', 'title', 'startDate', 'endDate', 'locationName', 'note', 'createdAt', 'updatedAt'];
+      return d.keys().hasOnly(fields)
+        && d.keys().hasAll(fields)
+        && d.id == eventId
+        && d.tripId == tripId
+        && d.type in ['flight', 'train', 'car', 'walk', 'hotel', 'business', 'architecture', 'food', 'other']
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 200
+        && d.locationName is string && d.locationName.size() <= 200
+        && d.note is string && d.note.size() <= 2000
+        && d.startDate is timestamp && d.endDate is timestamp && d.endDate >= d.startDate
+        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
+    }
+
+    function tripExists(userId, tripId) {
+      return exists(/databases/$(database)/documents/users/$(userId)/trips/$(tripId));
+    }
+
     match /users/{userId}/trips/{tripId} {
       allow read, delete: if isOwner(userId);
       allow create: if isOwner(userId) && isValidTrip(tripId);
       allow update: if isOwner(userId) && isValidTrip(tripId)
         && request.resource.data.createdAt == resource.data.createdAt;
+
+      // Events may only be written below an existing Trip of the same user.
+      match /events/{eventId} {
+        allow read, delete: if isOwner(userId);
+        allow create: if isOwner(userId) && isValidEvent(tripId, eventId) && tripExists(userId, tripId);
+        allow update: if isOwner(userId) && isValidEvent(tripId, eventId) && tripExists(userId, tripId)
+          && request.resource.data.createdAt == resource.data.createdAt;
+      }
     }
   }
 }

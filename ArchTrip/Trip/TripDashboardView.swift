@@ -183,7 +183,7 @@ private struct DayStrip: View {
     }
 }
 
-private struct EventRow: View {
+struct EventRow: View {
     let event: Event
     let day: Date
 
@@ -201,7 +201,7 @@ private struct EventRow: View {
                     .foregroundStyle(.secondary)
                 Text(verbatim: event.title)
                     .font(.body.weight(.semibold))
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Text(event.type.label)
                     if !event.locationName.isEmpty {
                         Text(verbatim: "· \(event.locationName)")
@@ -215,7 +215,7 @@ private struct EventRow: View {
     }
 }
 
-private struct FreeTimeRow: View {
+struct FreeTimeRow: View {
     let start: Date
     let end: Date
 
@@ -223,26 +223,25 @@ private struct FreeTimeRow: View {
         let duration = TimelineBuilder.hoursAndMinutes(from: start, to: end)
         HStack(spacing: 8) {
             line
-            Label {
-                HStack(spacing: 4) {
-                    Text("Free time")
-                    durationText(duration)
-                }
-            } icon: {
+            HStack(spacing: 4) {
                 Image(systemName: "cup.and.saucer.fill")
+                Text("Free time")
+                durationText(duration)
             }
-            .font(.subheadline.weight(.medium))
-            .foregroundStyle(.green)
-            .fixedSize()
+            .lineLimit(1)
+            .layoutPriority(1)
             line
         }
+        .font(.subheadline.weight(.medium))
+        .foregroundStyle(.green)
         .listRowBackground(Color.green.opacity(0.08))
+        .accessibilityElement(children: .combine)
     }
 
     private var line: some View {
         Rectangle()
             .fill(.green.opacity(0.4))
-            .frame(height: 1)
+            .frame(maxWidth: .infinity, maxHeight: 1)
     }
 
     private func durationText(_ duration: (hours: Int, minutes: Int)) -> Text {
