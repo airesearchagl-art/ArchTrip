@@ -1,0 +1,16 @@
+# macOS
+.DS_Store
+
+# Xcode user-specific
+xcuserdata/
+*.xcuserstate
+
+# Build
+build/
+DerivedData/
+
+# Swift Package Manager
+.build/
+
+# Firebase / local secrets
+GoogleService-Info.plist
