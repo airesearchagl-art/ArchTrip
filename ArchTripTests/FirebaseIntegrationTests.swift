@@ -34,7 +34,7 @@ struct FirebaseIntegrationTests {
     private func save(_ trip: Trip, uid: String, store: TripStore) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             do {
-                try store.save(trip, uid: uid) { error in
+                try store.saveTrip(trip, uid: uid) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {
@@ -76,16 +76,16 @@ struct FirebaseIntegrationTests {
         try await save(trip, uid: uid, store: store)
         print("G1-EVIDENCE write acknowledged path=users/\(uid.prefix(6))…/trips/\(trip.id)")
 
-        let snapshot = try await store.fetch(uid: uid, source: .server)
+        let snapshot = try await store.fetchTrips(uid: uid, source: .server)
         #expect(!snapshot.isFromCache)
-        let read = try #require(snapshot.trips.first { $0.id == trip.id })
+        let read = try #require(snapshot.items.first { $0.id == trip.id })
         #expect(read == trip)
-        print("G1-EVIDENCE read fromCache=\(snapshot.isFromCache) match=\(read == trip) count=\(snapshot.trips.count)")
+        print("G1-EVIDENCE read fromCache=\(snapshot.isFromCache) match=\(read == trip) count=\(snapshot.items.count)")
 
         // Leave no integration data behind.
         try await Firestore.firestore().document(TripPath.document(uid: uid, tripID: trip.id)).delete()
-        let afterDelete = try await store.fetch(uid: uid, source: .server)
-        #expect(!afterDelete.trips.contains { $0.id == trip.id })
+        let afterDelete = try await store.fetchTrips(uid: uid, source: .server)
+        #expect(!afterDelete.items.contains { $0.id == trip.id })
     }
 
     @Test func d_accessIsScopedToOwner() async throws {
@@ -96,7 +96,7 @@ struct FirebaseIntegrationTests {
         // Other user's path: read and write denied.
         await #expect(throws: (any Error).self) {
             do {
-                _ = try await store.fetch(uid: otherUID, source: .server)
+                _ = try await store.fetchTrips(uid: otherUID, source: .server)
             } catch {
                 #expect(isPermissionDenied(error), "\(error)")
                 throw error
@@ -136,7 +136,7 @@ struct FirebaseIntegrationTests {
         probeDB.settings = settings
         await #expect(throws: (any Error).self) {
             do {
-                _ = try await TripStore(db: probeDB).fetch(uid: uid, source: .server)
+                _ = try await TripStore(db: probeDB).fetchTrips(uid: uid, source: .server)
             } catch {
                 #expect(isPermissionDenied(error), "\(error)")
                 throw error

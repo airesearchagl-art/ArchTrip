@@ -67,6 +67,20 @@ struct TripTests {
         #expect(try Firestore.Decoder().decode(Trip.self, from: fields) == trip)
     }
 
+    @Test func partitionUpcomingAndPast() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
+        func day(_ d: Int) -> Date { calendar.date(from: DateComponents(year: 2026, month: 10, day: d))! }
+        let past = Trip(id: "past", title: "p", destination: "", startDate: day(1), endDate: day(2))
+        let ongoing = Trip(id: "ongoing", title: "o", destination: "", startDate: day(9), endDate: day(10))
+        let later = Trip(id: "later", title: "l", destination: "", startDate: day(20), endDate: day(21))
+        let soon = Trip(id: "soon", title: "s", destination: "", startDate: day(12), endDate: day(12))
+        let older = Trip(id: "older", title: "o", destination: "", startDate: day(3), endDate: day(4))
+        let result = Trip.partition([later, past, soon, ongoing, older], today: day(10).addingTimeInterval(15 * 3600), calendar: calendar)
+        #expect(result.upcoming.map(\.id) == ["ongoing", "soon", "later"])
+        #expect(result.past.map(\.id) == ["older", "past"])
+    }
+
     @Test func paths() {
         #expect(TripPath.collection(uid: "u1") == "users/u1/trips")
         #expect(TripPath.document(uid: "u1", tripID: "t1") == "users/u1/trips/t1")
