@@ -1,0 +1,29 @@
+rules_version = '2';
+
+// ArchTrip G1: each signed-in user can only access users/{uid}/trips/*.
+// Everything else is denied by default.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isOwner(userId) {
+      return request.auth != null && request.auth.uid == userId;
+    }
+
+    function isValidTrip(tripId) {
+      let d = request.resource.data;
+      return d.keys().hasOnly(['id', 'title', 'destination', 'startDate', 'endDate', 'createdAt', 'updatedAt'])
+        && d.keys().hasAll(['id', 'title', 'destination', 'startDate', 'endDate', 'createdAt', 'updatedAt'])
+        && d.id == tripId
+        && d.title is string && d.title.size() > 0 && d.title.size() <= 200
+        && d.destination is string && d.destination.size() <= 200
+        && d.startDate is timestamp && d.endDate is timestamp && d.endDate >= d.startDate
+        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
+    }
+
+    match /users/{userId}/trips/{tripId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidTrip(tripId);
+      allow update: if isOwner(userId) && isValidTrip(tripId)
+        && request.resource.data.createdAt == resource.data.createdAt;
+    }
+  }
+}
