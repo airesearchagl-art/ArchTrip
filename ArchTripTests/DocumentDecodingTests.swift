@@ -47,6 +47,26 @@ struct DocumentDecodingTests {
         #expect(result.failures == [DecodeFailure(documentID: "e1", reason: "tripId mismatch")])
     }
 
+    @Test func malformedBuildingIsFailVisible() throws {
+        let valid = Building(id: "ok", name: "Valid", createdAt: date)
+        var halfCoordinate = Building(id: "half", name: "Half", latitude: 43, longitude: 141, createdAt: date)
+        halfCoordinate.longitude = nil
+        var missingName = try Firestore.Encoder().encode(Building(id: "noname", name: "x", createdAt: date))
+        missingName.removeValue(forKey: "name")
+        let result = DocumentDecoding.decode(
+            [
+                (id: "ok", data: try Firestore.Encoder().encode(valid)),
+                (id: "half", data: try Firestore.Encoder().encode(halfCoordinate)),
+                (id: "noname", data: missingName),
+            ],
+            as: Building.self,
+            validate: \.invalidReason
+        )
+        #expect(result.items == [valid])
+        #expect(result.failures.map(\.documentID) == ["half", "noname"])
+        #expect(result.failures[0].reason == "latitude and longitude must be set together")
+    }
+
     @Test func allValidDocumentsDecode() throws {
         let result = DocumentDecoding.decode(
             [(id: "a", data: try tripFields(id: "a")), (id: "b", data: try tripFields(id: "b"))],

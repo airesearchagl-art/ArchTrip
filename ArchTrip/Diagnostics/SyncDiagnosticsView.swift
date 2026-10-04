@@ -19,6 +19,8 @@ struct SyncDiagnosticsView: View {
                     row("Pending writes", value: session.tripsHavePendingWrites ? "yes" : "no")
                     row("Trips", value: "\(session.trips.count)")
                     row("Decode failures", value: "\(session.tripFailures.count)")
+                    row("Buildings", value: "\(session.buildings.count)")
+                    row("Building decode failures", value: "\(session.buildingFailures.count)")
                     Toggle(isOn: Binding(
                         get: { session.isNetworkEnabled },
                         set: { enabled in Task { await session.setNetworkEnabled(enabled) } }

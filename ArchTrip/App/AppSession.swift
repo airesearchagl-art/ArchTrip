@@ -3,8 +3,8 @@ import FirebaseFirestore
 import Foundation
 import Observation
 
-/// App-wide Firebase state: anonymous sign-in, the signed-in user's Trips,
-/// and write results. Anonymous Auth is development identity only (G1/G2).
+/// App-wide Firebase state: anonymous sign-in, the signed-in user's Trips and
+/// Buildings (one listener each), and write results. Anonymous Auth is development identity only (G1/G2).
 @Observable
 final class AppSession {
     enum State: Equatable {
@@ -26,6 +26,10 @@ final class AppSession {
     private(set) var tripsLoadFailed = false
     private(set) var tripsFromCache = false
     private(set) var tripsHavePendingWrites = false
+    private(set) var buildings: [Building] = []
+    private(set) var buildingFailures: [DecodeFailure] = []
+    private(set) var hasLoadedBuildings = false
+    private(set) var buildingsLoadFailed = false
     private(set) var isNetworkEnabled = true
     private(set) var saveFailure: SaveFailure?
     /// Developer diagnostics log (English, not user-facing).
@@ -34,6 +38,7 @@ final class AppSession {
     @ObservationIgnored private(set) var store: TripStore?
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private var tripsListener: ListenerRegistration?
+    @ObservationIgnored private var buildingsListener: ListenerRegistration?
     @ObservationIgnored private var isSigningIn = false
 
     var uid: String? {
@@ -75,6 +80,10 @@ final class AppSession {
         trips.first { $0.id == id }
     }
 
+    func building(id: String) -> Building? {
+        buildings.first { $0.id == id }
+    }
+
     // MARK: Writes
 
     func saveTrip(_ trip: Trip) {
@@ -109,6 +118,27 @@ final class AppSession {
         append("Deleted event \(event.id.prefix(8)) in local cache")
     }
 
+    func saveBuilding(_ building: Building) {
+        guard let uid, let store else { return }
+        do {
+            try store.saveBuilding(building, uid: uid) { [weak self] error in
+                self?.handleServerResult(error, action: "save building \(building.id.prefix(8))")
+            }
+            append("Wrote building \(building.id.prefix(8)) to local cache")
+        } catch {
+            reportSaveFailure("Encode building failed: \(error.localizedDescription)")
+        }
+    }
+
+    /// Deletes only the Building; Events that link to it are left untouched.
+    func deleteBuilding(_ building: Building) {
+        guard let uid, let store else { return }
+        store.deleteBuilding(building, uid: uid) { [weak self] error in
+            self?.handleServerResult(error, action: "delete building \(building.id.prefix(8))")
+        }
+        append("Deleted building \(building.id.prefix(8)) in local cache")
+    }
+
     func dismissSaveFailure() {
         saveFailure = nil
     }
@@ -141,9 +171,14 @@ final class AppSession {
     private func handleAuthChange(_ user: User?) {
         tripsListener?.remove()
         tripsListener = nil
+        buildingsListener?.remove()
+        buildingsListener = nil
         trips = []
         tripFailures = []
         hasLoadedTrips = false
+        buildings = []
+        buildingFailures = []
+        hasLoadedBuildings = false
         guard let user else {
             Task { await signIn() }
             return
@@ -151,6 +186,26 @@ final class AppSession {
         state = .ready(uid: user.uid)
         tripsListener = store?.listenTrips(uid: user.uid) { [weak self] result in
             self?.applyTrips(result)
+        }
+        buildingsListener = store?.listenBuildings(uid: user.uid) { [weak self] result in
+            self?.applyBuildings(result)
+        }
+    }
+
+    private func applyBuildings(_ result: Result<QueryResult<Building>, Error>) {
+        switch result {
+        case .success(let snapshot):
+            buildings = snapshot.items
+            buildingFailures = snapshot.failures
+            buildingsLoadFailed = false
+            hasLoadedBuildings = true
+            for failure in snapshot.failures {
+                append("Building \(failure.documentID) failed to decode: \(failure.reason)")
+            }
+        case .failure(let error):
+            buildingsLoadFailed = true
+            hasLoadedBuildings = true
+            append("Buildings listener error: \(error.localizedDescription)")
         }
     }
 

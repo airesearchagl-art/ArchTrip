@@ -5,21 +5,36 @@ struct RootView: View {
     @State private var showingSettings = false
 
     var body: some View {
-        NavigationStack {
-            content
-                .navigationTitle(Text(verbatim: "ArchTrip"))
-                .toolbar {
-                    ToolbarItem(placement: .topBarLeading) {
-                        Button {
-                            showingSettings = true
-                        } label: {
-                            Label("Settings", systemImage: "gearshape")
+        Group {
+            if case .ready = session.state {
+                TabView {
+                    Tab("Trips", systemImage: "suitcase") {
+                        NavigationStack {
+                            TripListView()
+                                .navigationTitle(Text(verbatim: "ArchTrip"))
+                                .toolbar { settingsButton }
+                                .navigationDestination(for: TripRoute.self) { route in
+                                    TripDashboardView(tripID: route.tripID)
+                                }
+                        }
+                    }
+                    Tab("Architecture", systemImage: "building.columns") {
+                        NavigationStack {
+                            ArchitectureView()
+                                .toolbar { settingsButton }
+                                .navigationDestination(for: BuildingRoute.self) { route in
+                                    BuildingDetailView(buildingID: route.buildingID)
+                                }
                         }
                     }
                 }
-                .navigationDestination(for: TripRoute.self) { route in
-                    TripDashboardView(tripID: route.tripID)
+            } else {
+                NavigationStack {
+                    statusContent
+                        .navigationTitle(Text(verbatim: "ArchTrip"))
+                        .toolbar { settingsButton }
                 }
+            }
         }
         .sheet(isPresented: $showingSettings) {
             SettingsView()
@@ -37,8 +52,18 @@ struct RootView: View {
         }
     }
 
+    private var settingsButton: some ToolbarContent {
+        ToolbarItem(placement: .topBarLeading) {
+            Button {
+                showingSettings = true
+            } label: {
+                Label("Settings", systemImage: "gearshape")
+            }
+        }
+    }
+
     @ViewBuilder
-    private var content: some View {
+    private var statusContent: some View {
         switch session.state {
         case .notConfigured:
             ContentUnavailableView(
@@ -46,7 +71,7 @@ struct RootView: View {
                 systemImage: "exclamationmark.triangle",
                 description: Text("This build has no server configuration.")
             )
-        case .connecting:
+        case .connecting, .ready:
             ProgressView("Connecting…")
         case .failed:
             ContentUnavailableView {
@@ -58,12 +83,14 @@ struct RootView: View {
                     Task { await session.signIn() }
                 }
             }
-        case .ready:
-            TripListView()
         }
     }
 }
 
 struct TripRoute: Hashable {
     let tripID: String
+}
+
+struct BuildingRoute: Hashable {
+    let buildingID: String
 }

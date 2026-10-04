@@ -62,6 +62,9 @@ struct EventEditorView: View {
                         Text(issue).foregroundStyle(.red)
                     }
                 }
+                if existing?.buildingId != nil, type == .architecture {
+                    buildingLinkSection
+                }
                 Section {
                     TextField("Location", text: $locationName)
                     TextField("Note", text: $note, axis: .vertical)
@@ -100,6 +103,29 @@ struct EventEditorView: View {
         }
     }
 
+    @ViewBuilder
+    private var buildingLinkSection: some View {
+        Section("Building") {
+            switch existing.map({ BuildingLink.resolve($0, in: session.buildings) }) ?? .none {
+            case .available(let building):
+                NavigationLink {
+                    BuildingDetailView(buildingID: building.id)
+                } label: {
+                    Label {
+                        Text(verbatim: building.name)
+                    } icon: {
+                        Image(systemName: "building.columns.fill")
+                    }
+                }
+            case .unavailable:
+                Label("This building is no longer available", systemImage: "building.columns")
+                    .foregroundStyle(.secondary)
+            case .none:
+                EmptyView()
+            }
+        }
+    }
+
     private func save() {
         let now = Date()
         let createdAt = existing?.createdAt ?? now
@@ -113,7 +139,9 @@ struct EventEditorView: View {
             locationName: trimmedLocation,
             note: trimmedNote,
             createdAt: createdAt,
-            updatedAt: max(now, createdAt)
+            updatedAt: max(now, createdAt),
+            // Keep the Building link only while the Event stays an architecture visit.
+            buildingId: type == .architecture ? existing?.buildingId : nil
         )
         guard event.isValid else { return }
         session.saveEvent(event)
