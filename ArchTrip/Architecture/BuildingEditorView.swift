@@ -76,11 +76,19 @@ struct BuildingEditorView: View {
             Form {
                 searchSection
                 Section {
-                    TextField("Name", text: $name, prompt: Text("e.g. Sapporo Concert Hall Kitara"))
-                    TextField("Architect", text: $architect)
-                    TextField("Completed year", text: $yearText, prompt: Text("e.g. 1997"))
-                        .keyboardType(.numberPad)
-                    TextField("Address", text: $address, axis: .vertical)
+                    LabeledContent("Name") {
+                        TextField("Name", text: $name, prompt: Text("e.g. Sapporo Concert Hall Kitara"))
+                    }
+                    LabeledContent("Architect") {
+                        TextField("Architect", text: $architect)
+                    }
+                    LabeledContent("Completed year") {
+                        TextField("Completed year", text: $yearText, prompt: Text("e.g. 1997"))
+                            .keyboardType(.numberPad)
+                    }
+                    LabeledContent("Address") {
+                        TextField("Address", text: $address, axis: .vertical)
+                    }
                     if latitude != nil, longitude != nil {
                         HStack {
                             Label("Location set", systemImage: "mappin.circle.fill")
@@ -108,18 +116,19 @@ struct BuildingEditorView: View {
                         }
                     }
                     Picker("Priority", selection: $priority) {
-                        Text("Low").tag(1)
-                        Text("Normal").tag(2)
                         Text("High").tag(3)
+                        Text("Normal").tag(2)
+                        Text("Low").tag(1)
                     }
-                    .pickerStyle(.segmented)
                     Toggle("Visited", isOn: $visited)
                 }
                 Section {
                     TextField("Note", text: $note, axis: .vertical)
                         .lineLimit(3...8)
+                        .multilineTextAlignment(.leading)
                 }
             }
+            .multilineTextAlignment(.trailing)
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -138,6 +147,7 @@ struct BuildingEditorView: View {
         Section {
             HStack {
                 TextField("Search for a place or address", text: $query)
+                    .multilineTextAlignment(.leading)
                     .submitLabel(.search)
                     .onSubmit { Task { await search() } }
                 if isSearching {

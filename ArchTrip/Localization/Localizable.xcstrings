@@ -1,6 +1,34 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%lld buildings without a location are shown in the list only." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置情報のない%lld件の建築はリストにのみ表示されます。"
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld building without a location is shown in the list only."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld buildings without a location are shown in the list only."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld hr" : {
       "localizations" : {
         "ja" : {
@@ -59,12 +87,52 @@
         }
       }
     },
+    "Add" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "追加"
+          }
+        }
+      }
+    },
+    "Add Building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築を追加"
+          }
+        }
+      }
+    },
+    "Add buildings you want to visit." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見学したい建築を追加しましょう。"
+          }
+        }
+      }
+    },
     "Add Event" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "予定を追加"
+          }
+        }
+      }
+    },
+    "Add to Trip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張に追加"
           }
         }
       }
@@ -89,12 +157,52 @@
         }
       }
     },
+    "Address" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "住所"
+          }
+        }
+      }
+    },
+    "Architect" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "設計者"
+          }
+        }
+      }
+    },
+    "Architecture" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築"
+          }
+        }
+      }
+    },
     "Architecture Visit" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "建築見学"
+          }
+        }
+      }
+    },
+    "Building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築"
           }
         }
       }
@@ -139,6 +247,26 @@
         }
       }
     },
+    "Clear" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "クリア"
+          }
+        }
+      }
+    },
+    "Completed year" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "竣工年"
+          }
+        }
+      }
+    },
     "Connecting…" : {
       "localizations" : {
         "ja" : {
@@ -179,6 +307,26 @@
         }
       }
     },
+    "Create a trip first." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "先に出張を作成してください。"
+          }
+        }
+      }
+    },
+    "Date" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "日付"
+          }
+        }
+      }
+    },
     "Delete" : {
       "localizations" : {
         "ja" : {
@@ -189,12 +337,32 @@
         }
       }
     },
+    "Delete Building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築を削除"
+          }
+        }
+      }
+    },
     "Delete Event" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "予定を削除"
+          }
+        }
+      }
+    },
+    "Delete this building?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この建築を削除しますか？"
           }
         }
       }
@@ -249,6 +417,16 @@
         }
       }
     },
+    "e.g. 1997" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：1997"
+          }
+        }
+      }
+    },
     "e.g. Sapporo" : {
       "localizations" : {
         "ja" : {
@@ -269,12 +447,42 @@
         }
       }
     },
+    "e.g. Sapporo Concert Hall Kitara" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "例：札幌コンサートホール Kitara"
+          }
+        }
+      }
+    },
     "e.g. Site visit" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "例：施設見学"
+          }
+        }
+      }
+    },
+    "Edit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "編集"
+          }
+        }
+      }
+    },
+    "Edit Building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築を編集"
           }
         }
       }
@@ -319,12 +527,32 @@
         }
       }
     },
+    "Enter a name." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前を入力してください。"
+          }
+        }
+      }
+    },
     "Enter a title." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "タイトルを入力してください。"
+          }
+        }
+      }
+    },
+    "Enter a valid year." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正しい年を入力してください。"
           }
         }
       }
@@ -359,6 +587,16 @@
         }
       }
     },
+    "High" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "高"
+          }
+        }
+      }
+    },
     "Hotel" : {
       "localizations" : {
         "ja" : {
@@ -379,12 +617,72 @@
         }
       }
     },
+    "List" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リスト"
+          }
+        }
+      }
+    },
     "Location" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "場所"
+          }
+        }
+      }
+    },
+    "Location set" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置情報あり"
+          }
+        }
+      }
+    },
+    "Low" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "低"
+          }
+        }
+      }
+    },
+    "Map" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地図"
+          }
+        }
+      }
+    },
+    "Name" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "名前"
+          }
+        }
+      }
+    },
+    "New Building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "新しい建築"
           }
         }
       }
@@ -409,6 +707,16 @@
         }
       }
     },
+    "No buildings yet" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築はまだありません"
+          }
+        }
+      }
+    },
     "No events on this day" : {
       "localizations" : {
         "ja" : {
@@ -419,12 +727,52 @@
         }
       }
     },
+    "No location" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置情報なし"
+          }
+        }
+      }
+    },
+    "No location (search to set one)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "位置情報なし（検索で設定できます）"
+          }
+        }
+      }
+    },
     "No trips yet" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "出張はまだありません"
+          }
+        }
+      }
+    },
+    "Normal" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中"
+          }
+        }
+      }
+    },
+    "Not visited" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未訪問"
           }
         }
       }
@@ -449,6 +797,16 @@
         }
       }
     },
+    "Open in Apple Maps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Mapsで開く"
+          }
+        }
+      }
+    },
     "Other" : {
       "localizations" : {
         "ja" : {
@@ -469,12 +827,62 @@
         }
       }
     },
+    "Place search" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を検索"
+          }
+        }
+      }
+    },
+    "Priority" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "優先度"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存"
+          }
+        }
+      }
+    },
+    "Search" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索"
+          }
+        }
+      }
+    },
+    "Search for a place or address" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所名や住所で検索"
+          }
+        }
+      }
+    },
+    "Search needs a network connection. Try again later." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索にはネットワーク接続が必要です。後でもう一度お試しください。"
           }
         }
       }
@@ -559,6 +967,16 @@
         }
       }
     },
+    "This building is no longer available" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この建築は削除されています"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "ja" : {
@@ -579,12 +997,42 @@
         }
       }
     },
+    "Trip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張"
+          }
+        }
+      }
+    },
+    "Trip events that use this building are kept." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この建築を使った出張の予定は残ります。"
+          }
+        }
+      }
+    },
     "Trip not found" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "出張が見つかりません"
+          }
+        }
+      }
+    },
+    "Trips" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張"
           }
         }
       }
@@ -625,6 +1073,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "バージョン"
+          }
+        }
+      }
+    },
+    "View" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "表示"
+          }
+        }
+      }
+    },
+    "Visit duration" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "見学時間"
+          }
+        }
+      }
+    },
+    "Visited" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "訪問済み"
           }
         }
       }

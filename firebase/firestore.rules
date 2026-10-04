@@ -1,7 +1,10 @@
 rules_version = '2';
 
-// ArchTrip: each signed-in user can only access users/{uid}/trips/** (Trips and their Events).
-// Everything else is denied by default.
+// ArchTrip: each signed-in user can only access their own data under users/{uid}:
+// trips/** (Trips and their Events) and buildings/*. Everything else is denied by default.
+//
+// Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId) are
+// omitted from documents when unset (Firestore.Encoder skips nil), so they may be absent.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -22,7 +25,7 @@ service cloud.firestore {
     function isValidEvent(tripId, eventId) {
       let d = request.resource.data;
       let fields = ['id', 'tripId', 'type', 'title', 'startDate', 'endDate', 'locationName', 'note', 'createdAt', 'updatedAt'];
-      return d.keys().hasOnly(fields)
+      return d.keys().hasOnly(fields.concat(['buildingId']))
         && d.keys().hasAll(fields)
         && d.id == eventId
         && d.tripId == tripId
@@ -31,11 +34,39 @@ service cloud.firestore {
         && d.locationName is string && d.locationName.size() <= 200
         && d.note is string && d.note.size() <= 2000
         && d.startDate is timestamp && d.endDate is timestamp && d.endDate >= d.startDate
-        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
+        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt
+        // Optional Building link: architecture Events only. The Building's existence is
+        // intentionally not required, so Events stay editable after a Building is deleted.
+        && (!('buildingId' in d)
+          || (d.buildingId is string && d.buildingId.size() > 0 && d.buildingId.size() <= 200
+            && d.type == 'architecture'));
     }
 
     function tripExists(userId, tripId) {
       return exists(/databases/$(database)/documents/users/$(userId)/trips/$(tripId));
+    }
+
+    function isValidBuilding(buildingId) {
+      let d = request.resource.data;
+      let required = ['id', 'name', 'architect', 'address', 'visitMinutes', 'priority', 'visited', 'note', 'createdAt', 'updatedAt'];
+      return d.keys().hasAll(required)
+        && d.keys().hasOnly(required.concat(['completedYear', 'latitude', 'longitude']))
+        && d.id == buildingId
+        && d.name is string && d.name.size() > 0 && d.name.size() <= 200
+        && d.architect is string && d.architect.size() <= 200
+        && d.address is string && d.address.size() <= 300
+        && d.note is string && d.note.size() <= 2000
+        && d.visitMinutes is int && d.visitMinutes >= 5 && d.visitMinutes <= 480
+        && d.priority is int && d.priority >= 1 && d.priority <= 3
+        && d.visited is bool
+        && (!('completedYear' in d)
+          || (d.completedYear is int && d.completedYear >= 1 && d.completedYear <= 2100))
+        // Coordinates are a pair: both present or both absent.
+        && ('latitude' in d) == ('longitude' in d)
+        && (!('latitude' in d)
+          || (d.latitude is number && d.latitude >= -90 && d.latitude <= 90
+            && d.longitude is number && d.longitude >= -180 && d.longitude <= 180))
+        && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
     }
 
     match /users/{userId}/trips/{tripId} {
@@ -51,6 +82,14 @@ service cloud.firestore {
         allow update: if isOwner(userId) && isValidEvent(tripId, eventId) && tripExists(userId, tripId)
           && request.resource.data.createdAt == resource.data.createdAt;
       }
+    }
+
+    // Buildings are user-owned and reusable across Trips. Deleting one leaves Events intact.
+    match /users/{userId}/buildings/{buildingId} {
+      allow read, delete: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidBuilding(buildingId);
+      allow update: if isOwner(userId) && isValidBuilding(buildingId)
+        && request.resource.data.createdAt == resource.data.createdAt;
     }
   }
 }
