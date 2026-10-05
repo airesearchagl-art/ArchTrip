@@ -90,7 +90,7 @@ enum AuthSpikeDiagnostics {
 
     /// Evidence lines go to stderr, which xcodebuild shows in its console output.
     /// Callers must never pass credential values or full UIDs.
-    static func evidence(_ line: String) {
-        FileHandle.standardError.write(Data("G4A-EVIDENCE \(line)\n".utf8))
+    static func evidence(_ line: String, tag: String = "G4A-EVIDENCE") {
+        FileHandle.standardError.write(Data("\(tag) \(line)\n".utf8))
     }
 }

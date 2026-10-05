@@ -65,9 +65,9 @@ struct SyncDiagnosticsView: View {
     private var authLabel: String {
         switch session.state {
         case .notConfigured: "Firebase not configured"
-        case .connecting: "Signing in…"
-        case .ready(let uid): "anonymous uid \(uid.prefix(8))…"
-        case .failed: "Sign-in failed"
+        case .connecting: "Connecting…"
+        case .signedOut: "Signed out"
+        case .ready(let uid): "\(session.accountKind == .anonymous ? "anonymous" : "email/password") uid \(uid.prefix(6))…"
         }
     }
 }

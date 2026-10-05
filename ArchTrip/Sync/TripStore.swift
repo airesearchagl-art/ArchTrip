@@ -91,6 +91,38 @@ final class TripStore {
         Self.listen(buildings(uid: uid), as: Building.self, validate: \.invalidReason, onChange: onChange)
     }
 
+    // MARK: Migration support
+
+    /// Waits until every locally queued write has been acknowledged by the server.
+    func waitForPendingWrites(timeout: Duration) async throws {
+        try await withThrowingTaskGroup(of: Void.self) { group in
+            group.addTask { try await self.db.waitForPendingWrites() }
+            group.addTask {
+                try await Task.sleep(for: timeout)
+                throw AccountError.timedOut
+            }
+            try await group.next()
+            group.cancelAll()
+        }
+    }
+
+    /// Every Trip, Event and Building document ID, read from the server only
+    /// (never the cache), including documents that fail to decode.
+    func serverSnapshot(uid: String) async throws -> MigrationSnapshot {
+        let trips = try await trips(uid: uid).getDocuments(source: .server)
+        var eventIDsByTrip: [String: Set<String>] = [:]
+        for trip in trips.documents {
+            let events = try await events(uid: uid, tripID: trip.documentID).getDocuments(source: .server)
+            eventIDsByTrip[trip.documentID] = Set(events.documents.map(\.documentID))
+        }
+        let buildings = try await buildings(uid: uid).getDocuments(source: .server)
+        return MigrationSnapshot(
+            tripIDs: Set(trips.documents.map(\.documentID)),
+            eventIDsByTrip: eventIDsByTrip,
+            buildingIDs: Set(buildings.documents.map(\.documentID))
+        )
+    }
+
     // MARK: Network
 
     func setNetworkEnabled(_ enabled: Bool) async throws {

@@ -25,18 +25,15 @@ struct FirebaseAuthMigrationIntegrationTests {
         case uidChanged
     }
 
-    /// Waits briefly for the app's own automatic sign-in so the default UID is stable.
-    private func settledDefaultUID() async -> String? {
-        for _ in 0..<30 {
-            if let uid = Auth.auth().currentUser?.uid { return uid }
-            try? await Task.sleep(for: .milliseconds(500))
-        }
-        return Auth.auth().currentUser?.uid
+    /// The app no longer signs in by itself (G4), so a default test user is ensured
+    /// first; otherwise a parallel live suite could sign in mid-spike.
+    private func settledDefaultUID() async throws -> String? {
+        try await LiveTestAuth.defaultUID()
     }
 
     @Test func anonymousLinkKeepsUIDAcrossPasswordSignIn() async throws {
         let defaultApp = try #require(FirebaseApp.app())
-        let defaultUIDBefore = await settledDefaultUID()
+        let defaultUIDBefore = try await settledDefaultUID()
 
         let spikeApp = "g4aAuthSpike\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
         FirebaseApp.configure(name: spikeApp, options: defaultApp.options)

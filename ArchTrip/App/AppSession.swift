@@ -3,15 +3,18 @@ import FirebaseFirestore
 import Foundation
 import Observation
 
-/// App-wide Firebase state: anonymous sign-in, the signed-in user's Trips and
-/// Buildings (one listener each), and write results. Anonymous Auth is development identity only (G1/G2).
+/// App-wide Firebase state: the signed-in user, their Trips and Buildings (one
+/// listener each), and write results.
+///
+/// G4: the app never creates an anonymous user. An existing (persisted) user is used
+/// as is; with no user the app shows Email/Password sign-in.
 @Observable
 final class AppSession {
     enum State: Equatable {
         case notConfigured
         case connecting
+        case signedOut
         case ready(uid: String)
-        case failed
     }
 
     struct SaveFailure: Identifiable {
@@ -20,6 +23,8 @@ final class AppSession {
     }
 
     private(set) var state: State = .notConfigured
+    private(set) var accountKind: AccountKind?
+    private(set) var maskedEmail: String?
     private(set) var trips: [Trip] = []
     private(set) var tripFailures: [DecodeFailure] = []
     private(set) var hasLoadedTrips = false
@@ -39,7 +44,6 @@ final class AppSession {
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
     @ObservationIgnored private var tripsListener: ListenerRegistration?
     @ObservationIgnored private var buildingsListener: ListenerRegistration?
-    @ObservationIgnored private var isSigningIn = false
 
     var uid: String? {
         if case .ready(let uid) = state { return uid }
@@ -61,19 +65,38 @@ final class AppSession {
         }
     }
 
-    /// Signs in anonymously when there is no persisted user. No login UI.
-    func signIn() async {
-        guard store != nil, !isSigningIn else { return }
-        isSigningIn = true
-        state = .connecting
-        defer { isSigningIn = false }
+    // MARK: Account
+
+    /// Email/Password sign-in for an install without a user (e.g. a second device).
+    /// Returns nil on success. The credential is not stored anywhere.
+    func signIn(_ input: EmailPasswordInput) async -> SignInFailure? {
+        guard store != nil else { return .other(code: 0) }
         do {
-            let result = try await Auth.auth().signInAnonymously()
-            append("Signed in anonymously uid=\(result.user.uid)")
+            _ = try await Auth.auth().signIn(withEmail: input.email, password: input.password)
+            append("Signed in with Email/Password")
+            return nil
         } catch {
-            state = .failed
-            append("Sign-in failed: \(error.localizedDescription)")
+            let failure = SignInFailure(error: error)
+            append("Email/Password sign-in failed: \(failure)")
+            return failure
         }
+    }
+
+    /// Migration operations bound to the current default user, or nil when not signed in.
+    func migrationSteps() -> MigrationSteps? {
+        guard let uid, let store else { return nil }
+        return .firebase(auth: Auth.auth(), store: store, uid: uid)
+    }
+
+    /// Re-reads the current Auth user, e.g. after linking a credential (same UID).
+    func refreshAccount() {
+        guard store != nil else { return }
+        apply(authUser: Auth.auth().currentUser.map(AuthUserSnapshot.init))
+    }
+
+    /// Developer log entry with booleans only (no UID, email or document IDs).
+    func logMigrationEvidence(_ line: String) {
+        append("Migration \(line)")
     }
 
     func trip(id: String) -> Trip? {
@@ -169,6 +192,37 @@ final class AppSession {
     // MARK: Private
 
     private func handleAuthChange(_ user: User?) {
+        apply(authUser: user.map(AuthUserSnapshot.init))
+    }
+
+    /// Applies an Auth state. No user means signed out: there is deliberately no
+    /// automatic anonymous sign-in. The same UID (e.g. after linking) keeps listeners.
+    func apply(authUser: AuthUserSnapshot?) {
+        guard let authUser else {
+            detachUserData()
+            accountKind = nil
+            maskedEmail = nil
+            state = .signedOut
+            return
+        }
+        if case .app(let kind) = AuthRoute.route(for: authUser) {
+            accountKind = kind
+        }
+        maskedEmail = authUser.email.map(AccountDisplay.maskedEmail)
+        if case .ready(let uid) = state, uid == authUser.uid { return }
+
+        detachUserData()
+        state = .ready(uid: authUser.uid)
+        append("Signed in (\(accountKind == .anonymous ? "anonymous" : "email/password"))")
+        tripsListener = store?.listenTrips(uid: authUser.uid) { [weak self] result in
+            self?.applyTrips(result)
+        }
+        buildingsListener = store?.listenBuildings(uid: authUser.uid) { [weak self] result in
+            self?.applyBuildings(result)
+        }
+    }
+
+    private func detachUserData() {
         tripsListener?.remove()
         tripsListener = nil
         buildingsListener?.remove()
@@ -179,17 +233,6 @@ final class AppSession {
         buildings = []
         buildingFailures = []
         hasLoadedBuildings = false
-        guard let user else {
-            Task { await signIn() }
-            return
-        }
-        state = .ready(uid: user.uid)
-        tripsListener = store?.listenTrips(uid: user.uid) { [weak self] result in
-            self?.applyTrips(result)
-        }
-        buildingsListener = store?.listenBuildings(uid: user.uid) { [weak self] result in
-            self?.applyBuildings(result)
-        }
     }
 
     private func applyBuildings(_ result: Result<QueryResult<Building>, Error>) {
