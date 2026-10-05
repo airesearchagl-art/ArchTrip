@@ -1,8 +1,12 @@
 import FirebaseFirestore
 import Foundation
 
-/// Thin Firestore wrapper for Trips and their Events.
+/// Thin Firestore wrapper for the signed-in user's Trips, Events and Buildings.
 /// Offline behavior comes from the SDK's persistent cache.
+///
+/// Queries are deliberately unordered: Firestore's `order(by:)` excludes documents
+/// missing the ordered field, which would hide malformed documents instead of
+/// reporting them. Callers sort on the client.
 final class TripStore {
     private let db: Firestore
 
@@ -18,6 +22,10 @@ final class TripStore {
         db.collection(TripPath.events(uid: uid, tripID: tripID))
     }
 
+    private func buildings(uid: String) -> CollectionReference {
+        db.collection(BuildingPath.collection(uid: uid))
+    }
+
     // MARK: Trips
 
     /// Writes to the local cache immediately. The completion fires once the
@@ -28,14 +36,12 @@ final class TripStore {
 
     /// One-shot read. `.default` falls back to the cache while offline.
     func fetchTrips(uid: String, source: FirestoreSource = .default) async throws -> QueryResult<Trip> {
-        let snapshot = try await trips(uid: uid)
-            .order(by: "createdAt", descending: true)
-            .getDocuments(source: source)
+        let snapshot = try await trips(uid: uid).getDocuments(source: source)
         return Self.result(snapshot, as: Trip.self)
     }
 
     func listenTrips(uid: String, onChange: @escaping (Result<QueryResult<Trip>, Error>) -> Void) -> ListenerRegistration {
-        Self.listen(trips(uid: uid).order(by: "createdAt", descending: true), as: Trip.self, onChange: onChange)
+        Self.listen(trips(uid: uid), as: Trip.self, onChange: onChange)
     }
 
     // MARK: Events
@@ -50,21 +56,39 @@ final class TripStore {
     }
 
     func fetchEvents(uid: String, tripID: String, source: FirestoreSource = .default) async throws -> QueryResult<Event> {
-        let snapshot = try await events(uid: uid, tripID: tripID)
-            .order(by: "startDate")
-            .getDocuments(source: source)
+        let snapshot = try await events(uid: uid, tripID: tripID).getDocuments(source: source)
         return Self.result(snapshot, as: Event.self, validate: Self.eventValidator(tripID: tripID))
     }
 
     func eventUpdates(uid: String, tripID: String) -> AsyncStream<Result<QueryResult<Event>, Error>> {
         AsyncStream { continuation in
             let registration = Self.listen(
-                events(uid: uid, tripID: tripID).order(by: "startDate"),
+                events(uid: uid, tripID: tripID),
                 as: Event.self,
                 validate: Self.eventValidator(tripID: tripID)
             ) { continuation.yield($0) }
             continuation.onTermination = { _ in registration.remove() }
         }
+    }
+
+    // MARK: Buildings
+
+    func saveBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        try buildings(uid: uid).document(building.id).setData(from: building, completion: serverAcknowledged)
+    }
+
+    /// Removes only the Building. Events linking to it keep their snapshot.
+    func deleteBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) {
+        buildings(uid: uid).document(building.id).delete(completion: serverAcknowledged)
+    }
+
+    func fetchBuildings(uid: String, source: FirestoreSource = .default) async throws -> QueryResult<Building> {
+        let snapshot = try await buildings(uid: uid).getDocuments(source: source)
+        return Self.result(snapshot, as: Building.self, validate: \.invalidReason)
+    }
+
+    func listenBuildings(uid: String, onChange: @escaping (Result<QueryResult<Building>, Error>) -> Void) -> ListenerRegistration {
+        Self.listen(buildings(uid: uid), as: Building.self, validate: \.invalidReason, onChange: onChange)
     }
 
     // MARK: Network

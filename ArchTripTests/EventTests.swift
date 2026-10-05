@@ -103,6 +103,48 @@ struct EventTests {
         }
     }
 
+    @Test func g2EventWithoutBuildingIdStillDecodes() throws {
+        var fields = try Firestore.Encoder().encode(makeEvent())
+        #expect(fields["buildingId"] == nil)
+        fields.removeValue(forKey: "buildingId")
+        let decoded = try Firestore.Decoder().decode(Event.self, from: fields)
+        #expect(decoded.buildingId == nil)
+        #expect(decoded == makeEvent())
+        #expect(decoded.isValid)
+    }
+
+    @Test func architectureEventWithBuildingIdIsValid() {
+        var event = makeEvent()
+        event.buildingId = "building-1"
+        #expect(event.type == .architecture)
+        #expect(event.isValid)
+    }
+
+    @Test func nonArchitectureEventWithBuildingIdIsInvalid() {
+        var event = makeEvent()
+        event.buildingId = "building-1"
+        event.type = .food
+        #expect(!event.isValid)
+    }
+
+    @Test func emptyOrOverlongBuildingIdIsInvalid() {
+        var empty = makeEvent()
+        empty.buildingId = ""
+        #expect(!empty.isValid)
+        var long = makeEvent()
+        long.buildingId = String(repeating: "b", count: Event.buildingIdMaxLength + 1)
+        #expect(!long.isValid)
+    }
+
+    @Test func firestoreRoundTripWithBuildingId() throws {
+        var event = makeEvent()
+        event.buildingId = "building-1"
+        let fields = try Firestore.Encoder().encode(event)
+        #expect(fields["buildingId"] as? String == "building-1")
+        #expect(Set(fields.keys).count == 11)
+        #expect(try Firestore.Decoder().decode(Event.self, from: fields) == event)
+    }
+
     @Test func eventPaths() {
         #expect(TripPath.events(uid: "u1", tripID: "t1") == "users/u1/trips/t1/events")
         #expect(TripPath.event(uid: "u1", tripID: "t1", eventID: "e1") == "users/u1/trips/t1/events/e1")

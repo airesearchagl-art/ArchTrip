@@ -19,6 +19,7 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
     static let titleMaxLength = 200
     static let locationNameMaxLength = 200
     static let noteMaxLength = 2000
+    static let buildingIdMaxLength = 200
 
     var id: String
     var tripId: String
@@ -30,6 +31,10 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
     var note: String
     var createdAt: Date
     var updatedAt: Date
+    /// Optional link to a Building (architecture Events only). The Event keeps its
+    /// own title/location snapshot, so it stays usable if the Building is deleted.
+    /// Omitted from the document when nil, so G2 Events decode unchanged.
+    var buildingId: String?
 
     init(
         id: String = UUID().uuidString,
@@ -41,7 +46,8 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         locationName: String = "",
         note: String = "",
         createdAt: Date = Date(),
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        buildingId: String? = nil
     ) {
         self.id = id
         self.tripId = tripId
@@ -53,6 +59,7 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         self.note = note
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
+        self.buildingId = buildingId
     }
 
     /// Mirrors the constraints enforced by `firebase/firestore.rules`.
@@ -63,5 +70,11 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
             && note.count <= Self.noteMaxLength
             && endDate >= startDate
             && updatedAt >= createdAt
+            && hasValidBuildingLink
+    }
+
+    private var hasValidBuildingLink: Bool {
+        guard let buildingId else { return true }
+        return type == .architecture && !buildingId.isEmpty && buildingId.count <= Self.buildingIdMaxLength
     }
 }
