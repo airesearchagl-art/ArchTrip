@@ -2,7 +2,7 @@ import FirebaseAuth
 import Foundation
 
 extension AuthUserSnapshot {
-    init(_ user: User) {
+    nonisolated init(_ user: User) {
         self.init(
             uid: user.uid,
             isAnonymous: user.isAnonymous,
