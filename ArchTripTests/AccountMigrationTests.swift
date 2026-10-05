@@ -46,7 +46,8 @@ struct AccountMigrationTests {
     private let uid = "uid-1"
     private var anonymous: AuthUserSnapshot { AuthUserSnapshot(uid: uid, isAnonymous: true, providerIDs: [], email: nil) }
     private var linked: AuthUserSnapshot { AuthUserSnapshot(uid: uid, isAnonymous: false, providerIDs: ["password"], email: "x@example.com") }
-    private let input = EmailPasswordInput(email: "x@example.com", password: "irrelevant-in-fakes")
+    /// Fake steps never use the values; they are generated so no literal exists.
+    private let input = EmailPasswordInput(email: "x@example.com", password: UUID().uuidString)
 
     private let data = MigrationSnapshot(
         tripIDs: ["t1", "t2"],
@@ -224,32 +225,39 @@ struct AccountMigrationTests {
 }
 
 struct EmailPasswordInputTests {
+    /// Lengths matter here, not values: no password-like literals in tests.
+    private let eight = String(repeating: "a", count: EmailPasswordInput.minimumPasswordLength)
+    private let seven = String(repeating: "a", count: EmailPasswordInput.minimumPasswordLength - 1)
+
     @Test func migrationValidation() {
-        #expect(EmailPasswordInput(email: " a@b.co ", password: "longenough").issues(confirmation: "longenough").isEmpty)
-        #expect(EmailPasswordInput(email: "not-an-email", password: "longenough").issues(confirmation: "longenough") == [.invalidEmail])
-        #expect(EmailPasswordInput(email: "a@b", password: "longenough").issues(confirmation: "longenough") == [.invalidEmail])
-        #expect(EmailPasswordInput(email: "a@b.co", password: "short").issues(confirmation: "short") == [.passwordTooShort])
-        #expect(EmailPasswordInput(email: "a@b.co", password: "longenough").issues(confirmation: "different!") == [.passwordMismatch])
+        #expect(EmailPasswordInput(email: " user@example.com ", password: eight).issues(confirmation: eight).isEmpty)
+        #expect(EmailPasswordInput(email: "not-an-email", password: eight).issues(confirmation: eight) == [.invalidEmail])
+        #expect(EmailPasswordInput(email: "user@example", password: eight).issues(confirmation: eight) == [.invalidEmail])
+        #expect(EmailPasswordInput(email: "user@example.com", password: seven).issues(confirmation: seven) == [.passwordTooShort])
+        #expect(EmailPasswordInput(email: "user@example.com", password: eight).issues(confirmation: eight + "b") == [.passwordMismatch])
     }
 
     @Test func signInValidation() {
-        #expect(EmailPasswordInput(email: "a@b.co", password: "x").issues(confirmation: nil).isEmpty)
-        #expect(EmailPasswordInput(email: "a@b.co", password: "").issues(confirmation: nil) == [.passwordTooShort])
+        #expect(EmailPasswordInput(email: "user@example.com", password: seven).issues(confirmation: nil).isEmpty)
+        #expect(EmailPasswordInput(email: "user@example.com", password: "").issues(confirmation: nil) == [.passwordTooShort])
     }
 
     @Test func emailIsTrimmedButPasswordIsNot() {
-        let input = EmailPasswordInput(email: "  a@b.co\n", password: " pass word ")
-        let emailOK = input.email == "a@b.co"
-        let passwordOK = input.password == " pass word "
+        let password = " \(UUID().uuidString) "
+        let input = EmailPasswordInput(email: "  user@example.com\n", password: password)
+        let emailOK = input.email == "user@example.com"
+        let passwordOK = input.password == password
         #expect(emailOK && passwordOK)
     }
 
     @Test func textualRepresentationsAreRedacted() {
-        let input = EmailPasswordInput(email: "owner@example.com", password: "S3cret-Value!")
+        let email = "owner-\(UUID().uuidString.prefix(8))@example.com"
+        let password = UUID().uuidString
+        let input = EmailPasswordInput(email: email, password: password)
         var dumped = ""
         dump(input, to: &dumped)
         for text in ["\(input)", String(reflecting: input), dumped] {
-            let leaks = text.contains("owner@example.com") || text.contains("S3cret-Value!")
+            let leaks = text.contains(email) || text.contains(password)
             #expect(!leaks)
         }
     }
