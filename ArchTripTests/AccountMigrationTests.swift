@@ -134,6 +134,25 @@ struct AccountMigrationTests {
         #expect(!fake.calls.contains("link"))
     }
 
+    /// RF-G4B1-01: a pending-writes wait that never completes is cut off at the
+    /// deadline; the migration is refused and link is never attempted.
+    @Test func neverAcknowledgedPendingWritesRefuseWithinBound() async {
+        let fake = fake()
+        var steps = fake.steps
+        steps.waitForPendingWrites = {
+            fake.calls.append("waitForPendingWrites")
+            try await BoundedWait.run(timeout: .milliseconds(200)) { _ in /* never acknowledged */ }
+        }
+        let clock = ContinuousClock()
+        let start = clock.now
+        let result = await AccountMigrator.run(input: input, expectedUID: uid, steps: steps)
+        let bounded = clock.now - start < .seconds(2)
+        #expect(result == .refused(.pendingWrites))
+        #expect(bounded)
+        #expect(!fake.calls.contains("link"))
+        #expect(!fake.calls.contains("readServerSnapshot"))
+    }
+
     @Test func serverUnavailableBlocksLink() async {
         let fake = fake(snapshots: [])
         #expect(await AccountMigrator.run(input: input, expectedUID: uid, steps: fake.steps) == .refused(.serverUnavailable))

@@ -33,7 +33,7 @@ extension MigrationSteps {
     }
 }
 
-enum AccountError: Error {
+nonisolated enum AccountError: Error {
     case noCurrentUser
     case timedOut
 }

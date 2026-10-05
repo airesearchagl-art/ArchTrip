@@ -93,16 +93,12 @@ final class TripStore {
 
     // MARK: Migration support
 
-    /// Waits until every locally queued write has been acknowledged by the server.
+    /// Waits until every locally queued write has been acknowledged by the server, or
+    /// throws `AccountError.timedOut` at the deadline. Firestore's callback can stay
+    /// pending indefinitely while offline, so the wait is bounded by `BoundedWait`.
     func waitForPendingWrites(timeout: Duration) async throws {
-        try await withThrowingTaskGroup(of: Void.self) { group in
-            group.addTask { try await self.db.waitForPendingWrites() }
-            group.addTask {
-                try await Task.sleep(for: timeout)
-                throw AccountError.timedOut
-            }
-            try await group.next()
-            group.cancelAll()
+        try await BoundedWait.run(timeout: timeout) { done in
+            db.waitForPendingWrites(completion: done)
         }
     }
 
