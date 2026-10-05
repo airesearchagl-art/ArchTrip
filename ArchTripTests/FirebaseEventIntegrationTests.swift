@@ -18,8 +18,7 @@ struct FirebaseEventIntegrationTests {
     private var db: Firestore { Firestore.firestore() }
 
     private func signedInUID() async throws -> String {
-        if let user = Auth.auth().currentUser { return user.uid }
-        return try await Auth.auth().signInAnonymously().user.uid
+        try await LiveTestAuth.defaultUID()
     }
 
     private func now() -> Date {

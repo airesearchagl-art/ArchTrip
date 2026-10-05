@@ -15,8 +15,7 @@ import Testing
 )
 struct FirebaseIntegrationTests {
     private func signedInUID() async throws -> String {
-        if let user = Auth.auth().currentUser { return user.uid }
-        return try await Auth.auth().signInAnonymously().user.uid
+        try await LiveTestAuth.defaultUID()
     }
 
     /// Whole seconds, so values survive Firestore's microsecond timestamps unchanged.

@@ -87,12 +87,52 @@
         }
       }
     },
+    "Account" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウント"
+          }
+        }
+      }
+    },
+    "Account set up" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントを設定しました"
+          }
+        }
+      }
+    },
     "Add" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "追加"
+          }
+        }
+      }
+    },
+    "Add an email and password to this account so you can sign in on your company iPhone later. Your trips, events and buildings stay in place." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントにメールアドレスとパスワードを追加し、後で会社のiPhoneからサインインできるようにします。出張・予定・建築のデータはそのまま保持されます。"
+          }
+        }
+      }
+    },
+    "Add an email and password to use the same data on another iPhone." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールアドレスとパスワードを追加すると、別のiPhoneでも同じデータを使えます。"
           }
         }
       }
@@ -197,12 +237,42 @@
         }
       }
     },
+    "Back" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "戻る"
+          }
+        }
+      }
+    },
     "Building" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "建築"
+          }
+        }
+      }
+    },
+    "Buildings" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築"
+          }
+        }
+      }
+    },
+    "Buildings retained" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築の保持"
           }
         }
       }
@@ -237,12 +307,32 @@
         }
       }
     },
+    "Check Again" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再確認"
+          }
+        }
+      }
+    },
     "Check your network connection and try again." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "ネットワーク接続を確認して、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "Checking…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認中…"
           }
         }
       }
@@ -267,22 +357,32 @@
         }
       }
     },
+    "Confirm Password" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード（確認）"
+          }
+        }
+      }
+    },
+    "Confirms with the server that all changes are saved before setting up the account." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントを設定する前に、すべての変更がサーバーに保存されていることを確認します。"
+          }
+        }
+      }
+    },
     "Connecting…" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "接続中…"
-          }
-        }
-      }
-    },
-    "Couldn't connect" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "接続できませんでした"
           }
         }
       }
@@ -297,12 +397,42 @@
         }
       }
     },
+    "Couldn't reach the server. Connect to the network and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーに接続できませんでした。ネットワークに接続して、もう一度お試しください。"
+          }
+        }
+      }
+    },
     "Couldn't save changes" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "変更を保存できませんでした"
+          }
+        }
+      }
+    },
+    "Couldn't set up the account. Try again later." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントを設定できませんでした。後でもう一度お試しください。"
+          }
+        }
+      }
+    },
+    "Couldn't sign in. Try again later." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインできませんでした。後でもう一度お試しください。"
           }
         }
       }
@@ -407,6 +537,16 @@
         }
       }
     },
+    "Device sync set up" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端末間同期を設定済み"
+          }
+        }
+      }
+    },
     "Done" : {
       "localizations" : {
         "ja" : {
@@ -507,6 +647,36 @@
         }
       }
     },
+    "Email" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールアドレス"
+          }
+        }
+      }
+    },
+    "Email sign-in is not enabled for this app." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアプリではメールアドレスでのサインインが有効になっていません。"
+          }
+        }
+      }
+    },
+    "Email/Password linked" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メール／パスワードの追加"
+          }
+        }
+      }
+    },
     "End" : {
       "localizations" : {
         "ja" : {
@@ -547,12 +717,42 @@
         }
       }
     },
+    "Enter a valid email address." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正しいメールアドレスを入力してください。"
+          }
+        }
+      }
+    },
     "Enter a valid year." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "正しい年を入力してください。"
+          }
+        }
+      }
+    },
+    "Events" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定"
+          }
+        }
+      }
+    },
+    "Events retained" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定の保持"
           }
         }
       }
@@ -677,6 +877,16 @@
         }
       }
     },
+    "Needs review" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認が必要です"
+          }
+        }
+      }
+    },
     "New Building" : {
       "localizations" : {
         "ja" : {
@@ -703,6 +913,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "新しい出張"
+          }
+        }
+      }
+    },
+    "No account is signed in." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインインしているアカウントがありません。"
           }
         }
       }
@@ -787,6 +1007,16 @@
         }
       }
     },
+    "Nothing was changed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "何も変更されていません。"
+          }
+        }
+      }
+    },
     "OK" : {
       "localizations" : {
         "ja" : {
@@ -817,6 +1047,16 @@
         }
       }
     },
+    "Password" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワード"
+          }
+        }
+      }
+    },
     "Past" : {
       "localizations" : {
         "ja" : {
@@ -837,12 +1077,32 @@
         }
       }
     },
+    "Pre-check" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "事前確認"
+          }
+        }
+      }
+    },
     "Priority" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "優先度"
+          }
+        }
+      }
+    },
+    "Ready" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "準備完了"
           }
         }
       }
@@ -887,6 +1147,36 @@
         }
       }
     },
+    "Set Up Account" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "アカウントを設定"
+          }
+        }
+      }
+    },
+    "Set Up Device Sync" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "端末間同期を設定"
+          }
+        }
+      }
+    },
+    "Set up this account?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントを設定しますか？"
+          }
+        }
+      }
+    },
     "Settings" : {
       "localizations" : {
         "ja" : {
@@ -903,6 +1193,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "セットアップが完了していません"
+          }
+        }
+      }
+    },
+    "Sign In" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン"
+          }
+        }
+      }
+    },
+    "Sign in with your sync account" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期用アカウントでサインイン"
+          }
+        }
+      }
+    },
+    "Some changes have not reached the server yet. Connect to the network and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "まだサーバーに届いていない変更があります。ネットワークに接続して、もう一度お試しください。"
           }
         }
       }
@@ -937,6 +1257,16 @@
         }
       }
     },
+    "The email or password is incorrect." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メールアドレスまたはパスワードが正しくありません。"
+          }
+        }
+      }
+    },
     "The end must be on or after the start." : {
       "localizations" : {
         "ja" : {
@@ -947,12 +1277,72 @@
         }
       }
     },
+    "The password is too weak. Use a longer, more complex password." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードが弱すぎます。より長く複雑なパスワードを使用してください。"
+          }
+        }
+      }
+    },
+    "The passwords don't match." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードが一致しません。"
+          }
+        }
+      }
+    },
     "The server didn't accept the change, so it was undone on this device." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "サーバーが変更を受け付けなかったため、この端末での変更は取り消されました。"
+          }
+        }
+      }
+    },
+    "The sign-in details were added, but a check did not pass. Nothing was undone automatically. Do not retry; report this state for review." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン情報は追加されましたが、確認項目の一部が合格しませんでした。自動では元に戻していません。再試行せず、この状態を報告して確認を受けてください。"
+          }
+        }
+      }
+    },
+    "The signed-in account changed. Reopen this screen." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サインイン中のアカウントが変わりました。この画面を開き直してください。"
+          }
+        }
+      }
+    },
+    "This account can't be used to sign in." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントではサインインできません。"
+          }
+        }
+      }
+    },
+    "This account is already set up." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントはすでに設定済みです。"
           }
         }
       }
@@ -977,12 +1367,52 @@
         }
       }
     },
+    "This changes this anonymous account into an account for syncing between devices. Your current data is kept; only sign-in details are added." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この匿名アカウントを端末間同期用アカウントへ変更します。現在のデータを保持したまま認証情報を追加します。"
+          }
+        }
+      }
+    },
+    "This email address is already used by another account." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このメールアドレスは別のアカウントで使用されています。"
+          }
+        }
+      }
+    },
+    "This iPhone only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このiPhoneのみ"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "タイトル"
+          }
+        }
+      }
+    },
+    "Too many attempts. Wait a while and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "試行回数が多すぎます。しばらく待ってから、もう一度お試しください。"
           }
         }
       }
@@ -1037,12 +1467,12 @@
         }
       }
     },
-    "Try Again" : {
+    "Trips retained" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "再試行"
+            "value" : "出張の保持"
           }
         }
       }
@@ -1057,12 +1487,62 @@
         }
       }
     },
+    "UID maintained" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "UIDの維持"
+          }
+        }
+      }
+    },
     "Upcoming" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "予定の出張"
+          }
+        }
+      }
+    },
+    "Use a unique, strong password (a password manager is recommended)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "他で使っていない強力なパスワードを使用してください（パスワード管理アプリの利用をおすすめします）。"
+          }
+        }
+      }
+    },
+    "Use an email address you control." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ご自身で管理しているメールアドレスを使用してください。"
+          }
+        }
+      }
+    },
+    "Use at least 8 characters for the password." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "パスワードは8文字以上にしてください。"
+          }
+        }
+      }
+    },
+    "Use the email and password set up on your other iPhone. Your data is shared through this account." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "もう一方のiPhoneで設定したメールアドレスとパスワードを使用してください。データはこのアカウントを通じて共有されます。"
           }
         }
       }
@@ -1113,6 +1593,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "徒歩"
+          }
+        }
+      }
+    },
+    "You can now sign in on another iPhone with this email and password." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このメールアドレスとパスワードで、別のiPhoneからサインインできるようになりました。"
+          }
+        }
+      }
+    },
+    "You will use this account on your company iPhone." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "このアカウントは後で会社のiPhoneで使用します。"
           }
         }
       }

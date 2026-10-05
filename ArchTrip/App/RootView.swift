@@ -73,16 +73,8 @@ struct RootView: View {
             )
         case .connecting, .ready:
             ProgressView("Connecting…")
-        case .failed:
-            ContentUnavailableView {
-                Label("Couldn't connect", systemImage: "wifi.exclamationmark")
-            } description: {
-                Text("Check your network connection and try again.")
-            } actions: {
-                Button("Try Again") {
-                    Task { await session.signIn() }
-                }
-            }
+        case .signedOut:
+            SignInView()
         }
     }
 }
