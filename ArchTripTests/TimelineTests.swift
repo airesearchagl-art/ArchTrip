@@ -121,6 +121,29 @@ struct TimelineTests {
         #expect(days == [at(15, 0), at(16, 0), at(20, 0)])
     }
 
+    @Test func dayOutsideTripDates() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(17, 0))
+        #expect(TimelineBuilder.isOutside(at(14, 23, 59), trip: trip, calendar: calendar))
+        #expect(!TimelineBuilder.isOutside(at(15, 0), trip: trip, calendar: calendar))
+        #expect(!TimelineBuilder.isOutside(at(17, 23, 30), trip: trip, calendar: calendar))
+        #expect(TimelineBuilder.isOutside(at(18, 0), trip: trip, calendar: calendar))
+    }
+
+    @Test func eventsOutsideTripDates() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(17, 0))
+        let before = event("before", at(5, 10), at(5, 11))
+        let inside = event("inside", at(16, 9), at(16, 10))
+        let spillsOver = event("spills", at(17, 22), at(18, 7))
+        let endsAtMidnight = event("midnight", at(17, 22), at(18, 0))
+        let after = event("after", at(20, 9), at(20, 10))
+        let marker = event("marker", at(14, 0), at(14, 0))
+        let outside = TimelineBuilder.events(
+            outside: trip, from: [after, inside, before, spillsOver, endsAtMidnight, marker], calendar: calendar
+        )
+        #expect(outside.map(\.id) == ["before", "marker", "spills", "after"])
+        #expect(TimelineBuilder.events(outside: trip, from: [inside, endsAtMidnight], calendar: calendar).isEmpty)
+    }
+
     @Test func hoursAndMinutes() {
         #expect(TimelineBuilder.hoursAndMinutes(from: at(16, 9), to: at(16, 11)) == (2, 0))
         #expect(TimelineBuilder.hoursAndMinutes(from: at(16, 9), to: at(16, 9, 45)) == (0, 45))

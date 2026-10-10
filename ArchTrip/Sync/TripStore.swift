@@ -28,10 +28,17 @@ final class TripStore {
 
     // MARK: Trips
 
-    /// Writes to the local cache immediately. The completion fires once the
-    /// server acknowledges, which can be much later while offline.
-    func saveTrip(_ trip: Trip, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+    /// Writes the whole document to the local cache immediately. The completion fires
+    /// once the server acknowledges, which can be much later while offline.
+    func createTrip(_ trip: Trip, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
         try trips(uid: uid).document(trip.id).setData(from: trip, completion: serverAcknowledged)
+    }
+
+    /// Updates every field except `createdAt` (see `DocumentUpdate`). Fails visibly
+    /// when the document does not exist.
+    func updateTrip(_ trip: Trip, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try DocumentUpdate.fields(for: trip)
+        trips(uid: uid).document(trip.id).updateData(fields, completion: serverAcknowledged)
     }
 
     /// One-shot read. `.default` falls back to the cache while offline.
@@ -46,9 +53,15 @@ final class TripStore {
 
     // MARK: Events
 
-    func saveEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+    func createEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
         try events(uid: uid, tripID: event.tripId).document(event.id)
             .setData(from: event, completion: serverAcknowledged)
+    }
+
+    /// Updates every field except `createdAt`; a nil `buildingId` removes the link.
+    func updateEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try DocumentUpdate.fields(for: event)
+        events(uid: uid, tripID: event.tripId).document(event.id).updateData(fields, completion: serverAcknowledged)
     }
 
     func deleteEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) {
@@ -73,8 +86,14 @@ final class TripStore {
 
     // MARK: Buildings
 
-    func saveBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+    func createBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
         try buildings(uid: uid).document(building.id).setData(from: building, completion: serverAcknowledged)
+    }
+
+    /// Updates every field except `createdAt`; nil optional fields are removed.
+    func updateBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try DocumentUpdate.fields(for: building)
+        buildings(uid: uid).document(building.id).updateData(fields, completion: serverAcknowledged)
     }
 
     /// Removes only the Building. Events linking to it keep their snapshot.

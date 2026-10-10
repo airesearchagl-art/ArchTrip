@@ -66,13 +66,13 @@ struct FirebaseAccountMigrationIntegrationTests {
             let now = Date(timeIntervalSince1970: Date().timeIntervalSince1970.rounded(.down))
             let seededTrip = Trip(title: "G4B migration", destination: "Sapporo", startDate: now, endDate: now, createdAt: now)
             trip = seededTrip
-            try await acknowledged { try store.saveTrip(seededTrip, uid: anonymousUID, serverAcknowledged: $0) }
+            try await acknowledged { try store.createTrip(seededTrip, uid: anonymousUID, serverAcknowledged: $0) }
             let seededBuilding = Building(name: "G4B building", latitude: 43.06, longitude: 141.35, createdAt: now)
             building = seededBuilding
-            try await acknowledged { try store.saveBuilding(seededBuilding, uid: anonymousUID, serverAcknowledged: $0) }
+            try await acknowledged { try store.createBuilding(seededBuilding, uid: anonymousUID, serverAcknowledged: $0) }
             let seededEvent = BuildingScheduling.makeEvent(visiting: seededBuilding, tripID: seededTrip.id, start: now, durationMinutes: 60, now: now)
             event = seededEvent
-            try await acknowledged { try store.saveEvent(seededEvent, uid: anonymousUID, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(seededEvent, uid: anonymousUID, serverAcknowledged: $0) }
 
             let steps = MigrationSteps.firebase(auth: auth, store: store, uid: anonymousUID)
 

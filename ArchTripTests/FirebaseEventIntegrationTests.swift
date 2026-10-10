@@ -79,7 +79,7 @@ struct FirebaseEventIntegrationTests {
     private func withTestTrip(_ body: (String, Trip) async throws -> Void) async throws {
         let uid = try await signedInUID()
         let trip = makeTrip()
-        try await acknowledged { try store.saveTrip(trip, uid: uid, serverAcknowledged: $0) }
+        try await acknowledged { try store.createTrip(trip, uid: uid, serverAcknowledged: $0) }
         var bodyError: Error?
         do {
             try await body(uid, trip)
@@ -100,7 +100,7 @@ struct FirebaseEventIntegrationTests {
     @Test func ownEventRoundTripUpdateAndDelete() async throws {
         try await withTestTrip { uid, trip in
             var event = makeEvent(tripID: trip.id)
-            try await acknowledged { try store.saveEvent(event, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(event, uid: uid, serverAcknowledged: $0) }
             let read = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server)
             #expect(!read.isFromCache)
             #expect(read.failures.isEmpty)
@@ -110,13 +110,13 @@ struct FirebaseEventIntegrationTests {
             event.title = "G2 integration event (edited)"
             event.updatedAt = event.updatedAt.addingTimeInterval(60)
             let edited = event
-            try await acknowledged { try store.saveEvent(edited, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(edited, uid: uid, serverAcknowledged: $0) }
             #expect(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items == [edited])
 
             var movedCreatedAt = edited
             movedCreatedAt.createdAt = edited.createdAt.addingTimeInterval(-60)
             await expectPermissionDenied {
-                try await acknowledged { try store.saveEvent(movedCreatedAt, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(movedCreatedAt, uid: uid, serverAcknowledged: $0) }
             }
 
             try await acknowledged { store.deleteEvent(edited, uid: uid, serverAcknowledged: $0) }
@@ -130,13 +130,13 @@ struct FirebaseEventIntegrationTests {
             var reversed = makeEvent(tripID: trip.id)
             reversed.endDate = reversed.startDate.addingTimeInterval(-1)
             await expectPermissionDenied {
-                try await acknowledged { try store.saveEvent(reversed, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(reversed, uid: uid, serverAcknowledged: $0) }
             }
 
             var untitled = makeEvent(tripID: trip.id)
             untitled.title = ""
             await expectPermissionDenied {
-                try await acknowledged { try store.saveEvent(untitled, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(untitled, uid: uid, serverAcknowledged: $0) }
             }
 
             // Raw writes that the app model cannot produce.
@@ -164,7 +164,7 @@ struct FirebaseEventIntegrationTests {
             // Orphan: parent Trip does not exist.
             let orphan = makeEvent(tripID: "g2-missing-\(UUID().uuidString)")
             await expectPermissionDenied {
-                try await acknowledged { try store.saveEvent(orphan, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(orphan, uid: uid, serverAcknowledged: $0) }
             }
 
             print("G2-EVIDENCE denied: reversed dates, empty title, unknown type, extra field, tripId mismatch, orphan")
@@ -180,7 +180,7 @@ struct FirebaseEventIntegrationTests {
             _ = try await store.fetchEvents(uid: otherUID, tripID: otherEvent.tripId, source: .server)
         }
         await expectPermissionDenied {
-            try await acknowledged { try store.saveEvent(otherEvent, uid: otherUID, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(otherEvent, uid: otherUID, serverAcknowledged: $0) }
         }
 
         let probeName = "unauthenticatedEventProbe"

@@ -2,6 +2,8 @@ import SwiftUI
 
 struct TripEditorView: View {
     let existing: Trip?
+    /// The Trip's Events, for the dates warning. Irrelevant for a new Trip.
+    let events: EventLoadState
 
     @Environment(AppSession.self) private var session
     @Environment(\.dismiss) private var dismiss
@@ -9,9 +11,11 @@ struct TripEditorView: View {
     @State private var destination: String
     @State private var startDate: Date
     @State private var endDate: Date
+    @State private var hasSaved = false
 
-    init(trip: Trip?) {
+    init(trip: Trip?, events: EventLoadState = .loaded([], complete: true)) {
         existing = trip
+        self.events = events
         let today = Calendar.current.startOfDay(for: Date())
         _title = State(initialValue: trip?.title ?? "")
         _destination = State(initialValue: trip?.destination ?? "")
@@ -33,6 +37,12 @@ struct TripEditorView: View {
         return nil
     }
 
+    /// Events are never moved with the Trip; the user is told what the new dates leave out.
+    private var datesWarning: TripDatesWarning? {
+        guard let existing else { return nil }
+        return TripDatesWarning.forDates(start: startDay, end: endDay, of: existing, events: events, calendar: Calendar.current)
+    }
+
     var body: some View {
         let navigationTitle: LocalizedStringKey = existing == nil ? "New Trip" : "Edit Trip"
         NavigationStack {
@@ -47,6 +57,11 @@ struct TripEditorView: View {
                 } footer: {
                     if let issue {
                         Text(issue).foregroundStyle(.red)
+                    }
+                }
+                if let datesWarning {
+                    Section {
+                        DatesWarningView(warning: datesWarning, start: startDay, end: endDay)
                     }
                 }
             }
@@ -79,8 +94,45 @@ struct TripEditorView: View {
             createdAt: createdAt,
             updatedAt: max(now, createdAt)
         )
-        guard trip.isValid else { return }
-        session.saveTrip(trip)
+        // One write per editor, even if Save is tapped again while dismissing.
+        guard trip.isValid, !hasSaved else { return }
+        hasSaved = true
+        if existing == nil {
+            session.createTrip(trip)
+        } else {
+            session.updateTrip(trip)
+        }
         dismiss()
+    }
+}
+
+private struct DatesWarningView: View {
+    let warning: TripDatesWarning
+    let start: Date
+    let end: Date
+
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            switch warning {
+            case .unknown:
+                Label("Events couldn't be checked against the new dates. Review them after saving.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            case .outside(let count, let complete):
+                Label("Events outside the trip dates", systemImage: "calendar.badge.exclamationmark")
+                    .font(.headline)
+                    .foregroundStyle(.orange)
+                Text("New trip dates: \(DateFormatting.dateRange(start, end, locale: locale, calendar: .current))")
+                Text("\(count) events outside the new dates")
+                if !complete {
+                    Text("Some events couldn't be loaded and aren't counted.")
+                }
+                Text("Event dates aren't changed automatically. Edit them individually if needed.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.subheadline)
+        .accessibilityElement(children: .combine)
     }
 }

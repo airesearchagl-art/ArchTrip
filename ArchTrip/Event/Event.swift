@@ -78,3 +78,7 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         return type == .architecture && !buildingId.isEmpty && buildingId.count <= Self.buildingIdMaxLength
     }
 }
+
+extension Event: FirestoreDocument {
+    static let optionalFields = ["buildingId"]
+}

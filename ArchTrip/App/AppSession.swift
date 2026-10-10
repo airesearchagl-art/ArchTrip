@@ -108,29 +108,29 @@ final class AppSession {
     }
 
     // MARK: Writes
+    //
+    // Creates write the whole document; updates leave `createdAt` alone (RF-01, see
+    // `DocumentUpdate`). Each write lands in the local cache at once and reports the
+    // server's verdict later through `saveFailure`.
 
-    func saveTrip(_ trip: Trip) {
+    func createTrip(_ trip: Trip) {
         guard let uid, let store else { return }
-        do {
-            try store.saveTrip(trip, uid: uid) { [weak self] error in
-                self?.handleServerResult(error, action: "save trip \(trip.id.prefix(8))")
-            }
-            append("Wrote trip \(trip.id.prefix(8)) to local cache")
-        } catch {
-            reportSaveFailure("Encode trip failed: \(error.localizedDescription)")
-        }
+        write("create trip \(trip.id.prefix(8))") { try store.createTrip(trip, uid: uid, serverAcknowledged: $0) }
     }
 
-    func saveEvent(_ event: Event) {
+    func updateTrip(_ trip: Trip) {
         guard let uid, let store else { return }
-        do {
-            try store.saveEvent(event, uid: uid) { [weak self] error in
-                self?.handleServerResult(error, action: "save event \(event.id.prefix(8))")
-            }
-            append("Wrote event \(event.id.prefix(8)) to local cache")
-        } catch {
-            reportSaveFailure("Encode event failed: \(error.localizedDescription)")
-        }
+        write("update trip \(trip.id.prefix(8))") { try store.updateTrip(trip, uid: uid, serverAcknowledged: $0) }
+    }
+
+    func createEvent(_ event: Event) {
+        guard let uid, let store else { return }
+        write("create event \(event.id.prefix(8))") { try store.createEvent(event, uid: uid, serverAcknowledged: $0) }
+    }
+
+    func updateEvent(_ event: Event) {
+        guard let uid, let store else { return }
+        write("update event \(event.id.prefix(8))") { try store.updateEvent(event, uid: uid, serverAcknowledged: $0) }
     }
 
     func deleteEvent(_ event: Event) {
@@ -141,16 +141,14 @@ final class AppSession {
         append("Deleted event \(event.id.prefix(8)) in local cache")
     }
 
-    func saveBuilding(_ building: Building) {
+    func createBuilding(_ building: Building) {
         guard let uid, let store else { return }
-        do {
-            try store.saveBuilding(building, uid: uid) { [weak self] error in
-                self?.handleServerResult(error, action: "save building \(building.id.prefix(8))")
-            }
-            append("Wrote building \(building.id.prefix(8)) to local cache")
-        } catch {
-            reportSaveFailure("Encode building failed: \(error.localizedDescription)")
-        }
+        write("create building \(building.id.prefix(8))") { try store.createBuilding(building, uid: uid, serverAcknowledged: $0) }
+    }
+
+    func updateBuilding(_ building: Building) {
+        guard let uid, let store else { return }
+        write("update building \(building.id.prefix(8))") { try store.updateBuilding(building, uid: uid, serverAcknowledged: $0) }
     }
 
     /// Deletes only the Building; Events that link to it are left untouched.
@@ -271,16 +269,32 @@ final class AppSession {
         }
     }
 
+    private func write(_ action: String, _ operation: (@escaping (Error?) -> Void) throws -> Void) {
+        do {
+            try operation { [weak self] error in
+                self?.handleServerResult(error, action: action)
+            }
+            append("Wrote \(action) to local cache")
+        } catch {
+            reportSaveFailure("Encoding failed for \(action): \(error.localizedDescription)")
+        }
+    }
+
     private func handleServerResult(_ error: Error?, action: String) {
         if let error {
-            reportSaveFailure("Server rejected \(action): \(error.localizedDescription)")
+            let error = error as NSError
+            reportSaveFailure(
+                "Server rejected \(action): \(error.localizedDescription)",
+                log: "Server rejected \(action): \(error.localizedDescription) [\(error.domain) \(error.code)]"
+            )
         } else {
             append("Server acknowledged \(action)")
         }
     }
 
-    private func reportSaveFailure(_ detail: String) {
-        append(detail)
+    /// Alerts the user with `detail`; the log line may add technical context.
+    private func reportSaveFailure(_ detail: String, log: String? = nil) {
+        append(log ?? detail)
         saveFailure = SaveFailure(detail: detail)
     }
 

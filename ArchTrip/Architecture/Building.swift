@@ -82,6 +82,10 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
     var isValid: Bool { invalidReason == nil }
 }
 
+extension Building: FirestoreDocument {
+    static let optionalFields = ["completedYear", "latitude", "longitude"]
+}
+
 nonisolated enum BuildingPath {
     static func collection(uid: String) -> String {
         "users/\(uid)/buildings"

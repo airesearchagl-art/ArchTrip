@@ -1,6 +1,16 @@
 {
   "sourceLanguage" : "en",
   "strings" : {
+    "%@, outside the trip dates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%@（出張期間外）"
+          }
+        }
+      }
+    },
     "%lld buildings without a location are shown in the list only." : {
       "localizations" : {
         "ja" : {
@@ -22,6 +32,34 @@
                 "stringUnit" : {
                   "state" : "translated",
                   "value" : "%lld buildings without a location are shown in the list only."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld events outside the new dates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "期間外の予定：%lld件"
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld event outside the new dates"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld events outside the new dates"
                 }
               }
             }
@@ -253,6 +291,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建築"
+          }
+        }
+      }
+    },
+    "Building details" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築の詳細"
           }
         }
       }
@@ -737,6 +785,26 @@
         }
       }
     },
+    "Enter manually" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "自由入力する"
+          }
+        }
+      }
+    },
+    "Event dates aren't changed automatically. Edit them individually if needed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定の日付は自動変更されません。必要に応じて個別に編集してください。"
+          }
+        }
+      }
+    },
     "Events" : {
       "localizations" : {
         "ja" : {
@@ -747,12 +815,42 @@
         }
       }
     },
+    "Events couldn't be checked against the new dates. Review them after saving." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定を読み込めなかったため、期間外の予定を確認できません。保存後に出張の予定を確認してください。"
+          }
+        }
+      }
+    },
+    "Events outside the trip dates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張期間外の予定があります"
+          }
+        }
+      }
+    },
     "Events retained" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "予定の保持"
+          }
+        }
+      }
+    },
+    "Existing building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "既存の建築"
           }
         }
       }
@@ -917,6 +1015,16 @@
         }
       }
     },
+    "New trip dates: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更後の出張期間：%@"
+          }
+        }
+      }
+    },
     "No account is signed in." : {
       "localizations" : {
         "ja" : {
@@ -933,6 +1041,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建築はまだありません"
+          }
+        }
+      }
+    },
+    "No buildings yet. Add one in the Architecture tab, or enter the visit manually." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "登録済みの建築はありません。建築タブで追加するか、自由入力してください。"
           }
         }
       }
@@ -1043,6 +1161,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "その他"
+          }
+        }
+      }
+    },
+    "Outside the trip dates" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張期間外の予定"
           }
         }
       }
@@ -1227,6 +1355,16 @@
         }
       }
     },
+    "Some events couldn't be loaded and aren't counted." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "読み込めなかった予定は数に含まれていません。"
+          }
+        }
+      }
+    },
     "Some fields are too long." : {
       "localizations" : {
         "ja" : {
@@ -1253,6 +1391,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始日"
+          }
+        }
+      }
+    },
+    "The building's name is used as the title. Enter the location yourself." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築名がタイトルになります。場所は自分で入力してください。"
           }
         }
       }
@@ -1493,6 +1641,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "UIDの維持"
+          }
+        }
+      }
+    },
+    "Unlink building" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築のリンクを解除"
           }
         }
       }

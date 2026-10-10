@@ -28,7 +28,7 @@ struct SyncDiagnosticsView: View {
                         Text(verbatim: "Firestore network")
                     }
                     Button {
-                        session.saveTrip(Trip.makeTest())
+                        session.createTrip(Trip.makeTest())
                     } label: {
                         Text(verbatim: "Create Test Trip")
                     }

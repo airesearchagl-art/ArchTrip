@@ -20,6 +20,7 @@ struct BuildingEditorView: View {
     @State private var results: [PlaceResult] = []
     @State private var isSearching = false
     @State private var searchFailed = false
+    @State private var hasSaved = false
 
     init(building: Building?) {
         existing = building
@@ -204,8 +205,13 @@ struct BuildingEditorView: View {
 
     private func save() {
         let building = draft
-        guard building.isValid else { return }
-        session.saveBuilding(building)
+        guard building.isValid, !hasSaved else { return }
+        hasSaved = true
+        if existing == nil {
+            session.createBuilding(building)
+        } else {
+            session.updateBuilding(building)
+        }
         dismiss()
     }
 }

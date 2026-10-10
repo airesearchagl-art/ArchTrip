@@ -7,6 +7,7 @@ struct TripDashboardView: View {
     @Environment(\.locale) private var locale
     @State private var events: [Event] = []
     @State private var eventFailures: [DecodeFailure] = []
+    @State private var hasLoadedEvents = false
     @State private var eventsLoadFailed = false
     @State private var selectedDay: Date?
     @State private var editorTarget: EventEditorTarget?
@@ -25,6 +26,7 @@ struct TripDashboardView: View {
         .task(id: tripID) {
             guard let uid = session.uid, let store = session.store else { return }
             for await result in store.eventUpdates(uid: uid, tripID: tripID) {
+                hasLoadedEvents = true
                 switch result {
                 case .success(let snapshot):
                     events = snapshot.items
@@ -37,10 +39,17 @@ struct TripDashboardView: View {
         }
     }
 
+    private var eventLoadState: EventLoadState {
+        if eventsLoadFailed { return .failed }
+        if !hasLoadedEvents { return .loading }
+        return .loaded(events, complete: eventFailures.isEmpty)
+    }
+
     private func dashboard(_ trip: Trip) -> some View {
         let days = TimelineBuilder.days(for: trip, events: events, calendar: calendar)
         let day = currentDay(in: days)
         let items = TimelineBuilder.items(for: day, events: events, calendar: calendar)
+        let isOutside = { (day: Date) in TimelineBuilder.isOutside(day, trip: trip, calendar: calendar) }
         return List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
@@ -58,7 +67,7 @@ struct TripDashboardView: View {
                     }
                 }
                 .foregroundStyle(.secondary)
-                DayStrip(days: days, selectedDay: day) { selectedDay = $0 }
+                DayStrip(days: days, selectedDay: day, isOutside: isOutside) { selectedDay = $0 }
             }
 
             if !eventFailures.isEmpty {
@@ -94,7 +103,15 @@ struct TripDashboardView: View {
                     }
                 }
             } header: {
-                Text(verbatim: DateFormatting.day(day, locale: locale))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: DateFormatting.day(day, locale: locale))
+                    if isOutside(day) {
+                        // Kept visible on purpose: Events never move with the Trip's dates.
+                        Label("Outside the trip dates", systemImage: "calendar.badge.exclamationmark")
+                            .foregroundStyle(.orange)
+                            .textCase(nil)
+                    }
+                }
             }
         }
         .navigationTitle(Text(verbatim: trip.title))
@@ -123,7 +140,7 @@ struct TripDashboardView: View {
             }
         }
         .sheet(isPresented: $editingTrip) {
-            TripEditorView(trip: trip)
+            TripEditorView(trip: trip, events: eventLoadState)
         }
     }
 
@@ -151,6 +168,8 @@ enum EventEditorTarget: Identifiable {
 private struct DayStrip: View {
     let days: [Date]
     let selectedDay: Date
+    /// Days outside the Trip's dates, shown because an Event touches them.
+    let isOutside: (Date) -> Bool
     let select: (Date) -> Void
 
     @Environment(\.locale) private var locale
@@ -160,6 +179,7 @@ private struct DayStrip: View {
             HStack(spacing: 8) {
                 ForEach(days, id: \.self) { day in
                     let isSelected = day == selectedDay
+                    let outside = isOutside(day)
                     Button {
                         select(day)
                     } label: {
@@ -170,16 +190,26 @@ private struct DayStrip: View {
                                 .font(.headline)
                         }
                         .frame(minWidth: 52, minHeight: 48)
-                        .background(isSelected ? Color.accentColor : Color(.secondarySystemBackground), in: .rect(cornerRadius: 10))
-                        .foregroundStyle(isSelected ? Color.white : Color.primary)
+                        .background(background(isSelected: isSelected, outside: outside), in: .rect(cornerRadius: 10))
+                        .foregroundStyle(isSelected ? Color.white : outside ? Color.orange : Color.primary)
                     }
                     .buttonStyle(.plain)
                     .accessibilityAddTraits(isSelected ? .isSelected : [])
-                    .accessibilityLabel(Text(verbatim: DateFormatting.day(day, locale: locale)))
+                    .accessibilityLabel(accessibilityLabel(for: day, outside: outside))
                 }
             }
             .padding(.vertical, 4)
         }
+    }
+
+    private func background(isSelected: Bool, outside: Bool) -> Color {
+        if isSelected { return .accentColor }
+        return outside ? Color.orange.opacity(0.15) : Color(.secondarySystemBackground)
+    }
+
+    private func accessibilityLabel(for day: Date, outside: Bool) -> Text {
+        let label = DateFormatting.day(day, locale: locale)
+        return outside ? Text("\(label), outside the trip dates") : Text(verbatim: label)
     }
 }
 
