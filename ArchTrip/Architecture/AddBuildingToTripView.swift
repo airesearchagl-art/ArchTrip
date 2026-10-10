@@ -11,6 +11,7 @@ struct AddBuildingToTripView: View {
     @State private var day = Date()
     @State private var time: Date
     @State private var durationMinutes: Int
+    @State private var hasSaved = false
 
     private let calendar = Calendar.current
 
@@ -121,8 +122,9 @@ struct AddBuildingToTripView: View {
             start: start,
             durationMinutes: durationMinutes
         )
-        guard event.isValid else { return }
-        session.saveEvent(event)
+        guard event.isValid, !hasSaved else { return }
+        hasSaved = true
+        session.createEvent(event)
         dismiss()
     }
 }

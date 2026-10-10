@@ -68,7 +68,7 @@ struct FirebaseBuildingIntegrationTests {
     }
 
     private func save(_ building: Building, uid: String) async throws {
-        try await acknowledged { try store.saveBuilding(building, uid: uid, serverAcknowledged: $0) }
+        try await acknowledged { try store.createBuilding(building, uid: uid, serverAcknowledged: $0) }
     }
 
     private func saveRaw(_ fields: [String: Any], uid: String, buildingID: String) async throws {
@@ -188,17 +188,17 @@ struct FirebaseBuildingIntegrationTests {
     @Test func eventBuildingLinkRules() async throws {
         let uid = try await signedInUID()
         let trip = Trip(title: "G3 integration", destination: "Sapporo", startDate: now(), endDate: now(), createdAt: now())
-        try await acknowledged { try store.saveTrip(trip, uid: uid, serverAcknowledged: $0) }
+        try await acknowledged { try store.createTrip(trip, uid: uid, serverAcknowledged: $0) }
         var bodyError: Error?
         do {
             // G2-shaped Event without buildingId remains valid.
             let plain = Event(tripId: trip.id, type: .business, title: "G3 plain", startDate: now(), endDate: now(), createdAt: now())
-            try await acknowledged { try store.saveEvent(plain, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(plain, uid: uid, serverAcknowledged: $0) }
 
             // Architecture Event linking a Building that does not exist: accepted by design.
             let building = Building(id: "g3-missing-\(UUID().uuidString)", name: "Not stored", address: "札幌", createdAt: now())
             let linked = BuildingScheduling.makeEvent(visiting: building, tripID: trip.id, start: now(), durationMinutes: 60, now: now())
-            try await acknowledged { try store.saveEvent(linked, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.createEvent(linked, uid: uid, serverAcknowledged: $0) }
 
             let read = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server)
             #expect(read.failures.isEmpty)
@@ -209,14 +209,14 @@ struct FirebaseBuildingIntegrationTests {
             wrongType.id = UUID().uuidString
             wrongType.type = .food
             await expectPermissionDenied("buildingId on non-architecture") {
-                try await acknowledged { try store.saveEvent(wrongType, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(wrongType, uid: uid, serverAcknowledged: $0) }
             }
 
             var emptyLink = linked
             emptyLink.id = UUID().uuidString
             emptyLink.buildingId = ""
             await expectPermissionDenied("empty buildingId") {
-                try await acknowledged { try store.saveEvent(emptyLink, uid: uid, serverAcknowledged: $0) }
+                try await acknowledged { try store.createEvent(emptyLink, uid: uid, serverAcknowledged: $0) }
             }
         } catch {
             bodyError = error

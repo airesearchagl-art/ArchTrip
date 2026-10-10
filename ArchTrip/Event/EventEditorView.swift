@@ -12,7 +12,10 @@ struct EventEditorView: View {
     @State private var endDate: Date
     @State private var locationName: String
     @State private var note: String
+    /// Link to an existing Building (architecture Events only, RF-04).
+    @State private var buildingId: String?
     @State private var confirmingDelete = false
+    @State private var hasSaved = false
 
     init(tripID: String, existing: Event?, defaultDay: Date) {
         self.tripID = tripID
@@ -25,6 +28,11 @@ struct EventEditorView: View {
         _endDate = State(initialValue: existing?.endDate ?? defaultStart.addingTimeInterval(60 * 60))
         _locationName = State(initialValue: existing?.locationName ?? "")
         _note = State(initialValue: existing?.note ?? "")
+        _buildingId = State(initialValue: existing?.buildingId)
+    }
+
+    private var buildingLink: BuildingLink {
+        BuildingLink.resolve(buildingID: buildingId, in: session.buildings)
     }
 
     private var trimmedTitle: String { title.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -62,8 +70,8 @@ struct EventEditorView: View {
                         Text(issue).foregroundStyle(.red)
                     }
                 }
-                if existing?.buildingId != nil, type == .architecture {
-                    buildingLinkSection
+                if type == .architecture {
+                    buildingSection
                 }
                 Section {
                     TextField("Location", text: $locationName)
@@ -82,6 +90,10 @@ struct EventEditorView: View {
                 // Keep the duration when the start moves.
                 let duration = max(0, endDate.timeIntervalSince(oldStart))
                 endDate = newStart.addingTimeInterval(duration)
+            }
+            .onChange(of: buildingId) { previous, selected in
+                guard let selected, let building = session.building(id: selected) else { return }
+                title = BuildingScheduling.title(current: title, previous: previous.flatMap(session.building(id:)), selected: building)
             }
             .navigationTitle(navigationTitle)
             .navigationBarTitleDisplayMode(.inline)
@@ -103,25 +115,42 @@ struct EventEditorView: View {
         }
     }
 
+    /// Pick an existing Building (no duplicate Buildings, no MapKit search here) or
+    /// enter the visit by hand. Only the name is taken from the Building: its address
+    /// may come from Apple Maps search and is not copied into the Event (Option A).
     @ViewBuilder
-    private var buildingLinkSection: some View {
-        Section("Building") {
-            switch existing.map({ BuildingLink.resolve($0, in: session.buildings) }) ?? .none {
-            case .available(let building):
-                NavigationLink {
-                    BuildingDetailView(buildingID: building.id)
-                } label: {
-                    Label {
-                        Text(verbatim: building.name)
-                    } icon: {
-                        Image(systemName: "building.columns.fill")
-                    }
-                }
+    private var buildingSection: some View {
+        Section {
+            switch buildingLink {
             case .unavailable:
                 Label("This building is no longer available", systemImage: "building.columns")
                     .foregroundStyle(.secondary)
-            case .none:
-                EmptyView()
+                Button("Unlink building") { buildingId = nil }
+            case .available, .none:
+                if session.buildings.isEmpty {
+                    Text("No buildings yet. Add one in the Architecture tab, or enter the visit manually.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    Picker("Existing building", selection: $buildingId) {
+                        Text("Enter manually").tag(String?.none)
+                        ForEach(BuildingOrdering.sorted(session.buildings)) { building in
+                            Text(verbatim: building.name).tag(Optional(building.id))
+                        }
+                    }
+                    if case .available(let building) = buildingLink {
+                        NavigationLink {
+                            BuildingDetailView(buildingID: building.id)
+                        } label: {
+                            Label("Building details", systemImage: "building.columns.fill")
+                        }
+                    }
+                }
+            }
+        } header: {
+            Text("Building")
+        } footer: {
+            if buildingId != nil {
+                Text("The building's name is used as the title. Enter the location yourself.")
             }
         }
     }
@@ -141,10 +170,15 @@ struct EventEditorView: View {
             createdAt: createdAt,
             updatedAt: max(now, createdAt),
             // Keep the Building link only while the Event stays an architecture visit.
-            buildingId: type == .architecture ? existing?.buildingId : nil
+            buildingId: type == .architecture ? buildingId : nil
         )
-        guard event.isValid else { return }
-        session.saveEvent(event)
+        guard event.isValid, !hasSaved else { return }
+        hasSaved = true
+        if existing == nil {
+            session.createEvent(event)
+        } else {
+            session.updateEvent(event)
+        }
         dismiss()
     }
 }

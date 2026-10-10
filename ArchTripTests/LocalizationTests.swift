@@ -36,6 +36,21 @@ struct LocalizationTests {
         }
     }
 
+    @Test func japaneseG5RepairStrings() throws {
+        let expected = [
+            "Events outside the trip dates": "出張期間外の予定があります",
+            "Outside the trip dates": "出張期間外の予定",
+            "Event dates aren't changed automatically. Edit them individually if needed.": "予定の日付は自動変更されません。必要に応じて個別に編集してください。",
+            "Existing building": "既存の建築", "Enter manually": "自由入力する", "Unlink building": "建築のリンクを解除",
+            "The building's name is used as the title. Enter the location yourself.": "建築名がタイトルになります。場所は自分で入力してください。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("%lld events outside the new dates"), 2) == "期間外の予定：2件")
+        #expect(String(format: try japanese("New trip dates: %@"), "10月15日 – 10月17日") == "変更後の出張期間：10月15日 – 10月17日")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")

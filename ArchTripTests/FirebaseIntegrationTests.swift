@@ -33,7 +33,7 @@ struct FirebaseIntegrationTests {
     private func save(_ trip: Trip, uid: String, store: TripStore) async throws {
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             do {
-                try store.saveTrip(trip, uid: uid) { error in
+                try store.createTrip(trip, uid: uid) { error in
                     if let error {
                         continuation.resume(throwing: error)
                     } else {

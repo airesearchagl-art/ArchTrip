@@ -10,8 +10,10 @@ nonisolated enum BuildingScheduling {
         ) ?? day
     }
 
-    /// An architecture Event visiting `building` on `tripID`. Name and address are
-    /// copied as a snapshot; the Building note is intentionally not copied.
+    /// An architecture Event visiting `building` on `tripID`, linked by `buildingId` with
+    /// the name as its title. The address is not copied (Option A: a Building's location
+    /// may come from Apple Maps search and must not be persisted into new documents),
+    /// and neither is the note. The user can type a location on the Event.
     static func makeEvent(
         visiting building: Building,
         tripID: String,
@@ -25,11 +27,19 @@ nonisolated enum BuildingScheduling {
             title: building.name,
             startDate: start,
             endDate: start.addingTimeInterval(TimeInterval(max(0, durationMinutes) * 60)),
-            locationName: String(building.address.prefix(Event.locationNameMaxLength)),
+            locationName: "",
             note: "",
             createdAt: now,
             buildingId: building.id
         )
+    }
+
+    /// The title after picking `selected` in the Event editor: the Building's name,
+    /// unless the user typed a title of their own (anything but the previous pick's name).
+    static func title(current: String, previous: Building?, selected: Building) -> String {
+        let trimmed = current.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty || trimmed == previous?.name { return selected.name }
+        return current
     }
 }
 
@@ -41,7 +51,11 @@ nonisolated enum BuildingLink: Equatable, Sendable {
     case unavailable(buildingID: String)
 
     static func resolve(_ event: Event, in buildings: [Building]) -> BuildingLink {
-        guard let buildingID = event.buildingId else { return .none }
+        resolve(buildingID: event.buildingId, in: buildings)
+    }
+
+    static func resolve(buildingID: String?, in buildings: [Building]) -> BuildingLink {
+        guard let buildingID else { return .none }
         if let building = buildings.first(where: { $0.id == buildingID }) {
             return .available(building)
         }

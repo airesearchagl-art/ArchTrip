@@ -51,19 +51,41 @@ nonisolated enum TimelineBuilder {
     static func days(for trip: Trip, events: [Event], calendar: Calendar, limit: Int = 366) -> [Date] {
         var days = Set<Date>()
         var day = calendar.startOfDay(for: trip.startDate)
-        let lastDay = calendar.startOfDay(for: trip.endDate)
-        while day <= lastDay, days.count < limit {
+        let tripLastDay = calendar.startOfDay(for: trip.endDate)
+        while day <= tripLastDay, days.count < limit {
             days.insert(day)
             guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
             day = next
         }
         for event in events {
             days.insert(calendar.startOfDay(for: event.startDate))
-            if event.endDate > event.startDate {
-                days.insert(calendar.startOfDay(for: event.endDate.addingTimeInterval(-1)))
-            }
+            days.insert(lastDay(of: event, calendar: calendar))
         }
         return days.sorted()
+    }
+
+    /// Whether `day` lies before the Trip's first day or after its last.
+    static func isOutside(_ day: Date, trip: Trip, calendar: Calendar) -> Bool {
+        let day = calendar.startOfDay(for: day)
+        return day < calendar.startOfDay(for: trip.startDate) || day > calendar.startOfDay(for: trip.endDate)
+    }
+
+    /// Events that touch a day outside the Trip's dates, chronologically. Changing the
+    /// Trip's dates never moves its Events (each has its own), so these stay visible for
+    /// the user to edit or delete one by one.
+    static func events(outside trip: Trip, from events: [Event], calendar: Calendar) -> [Event] {
+        events
+            .filter {
+                isOutside($0.startDate, trip: trip, calendar: calendar)
+                    || isOutside(lastDay(of: $0, calendar: calendar), trip: trip, calendar: calendar)
+            }
+            .sorted(by: chronological)
+    }
+
+    /// The day an Event ends on; an end exactly at midnight belongs to the day before.
+    private static func lastDay(of event: Event, calendar: Calendar) -> Date {
+        let end = event.endDate > event.startDate ? event.endDate.addingTimeInterval(-1) : event.startDate
+        return calendar.startOfDay(for: end)
     }
 
     static func chronological(_ lhs: Event, _ rhs: Event) -> Bool {

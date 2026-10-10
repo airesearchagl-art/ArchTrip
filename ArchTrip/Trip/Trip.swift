@@ -60,6 +60,10 @@ nonisolated struct Trip: Codable, Identifiable, Equatable, Hashable, Sendable {
     }
 }
 
+extension Trip: FirestoreDocument {
+    static let optionalFields: [String] = []
+}
+
 nonisolated enum TripPath {
     static func collection(uid: String) -> String {
         "users/\(uid)/trips"

@@ -36,7 +36,7 @@ struct BuildingSchedulingTests {
         #expect(event.buildingId == "b-kitara")
         #expect(event.tripId == "trip-1")
         #expect(event.title == building.name)
-        #expect(event.locationName == building.address)
+        #expect(event.locationName.isEmpty)
         #expect(event.startDate == at(16, 14))
         #expect(event.endDate == at(16, 15, 30))
         #expect(event.note.isEmpty)
@@ -49,12 +49,24 @@ struct BuildingSchedulingTests {
         #expect(event.endDate == at(16, 9, 30))
     }
 
-    @Test func longAddressIsTruncatedToEventLimit() {
-        var long = building
-        long.address = String(repeating: "あ", count: Building.addressMaxLength)
-        let event = BuildingScheduling.makeEvent(visiting: long, tripID: "t", start: at(16, 9), durationMinutes: 60)
-        #expect(event.locationName.count == Event.locationNameMaxLength)
+    /// Option A: the Building's address and coordinates never enter a new Event; the
+    /// Event is linked by id and titled with the name only.
+    @Test func addressIsNotCopiedIntoTheEvent() {
+        let event = BuildingScheduling.makeEvent(visiting: building, tripID: "t", start: at(16, 9), durationMinutes: 60)
+        #expect(event.locationName.isEmpty)
+        #expect(event.note.isEmpty)
+        #expect(event.buildingId == building.id)
         #expect(event.isValid)
+    }
+
+    @Test func pickingABuildingSetsTheTitleUnlessCustom() {
+        let other = Building(id: "b-other", name: "モエレ沼公園 ガラスのピラミッド")
+        #expect(BuildingScheduling.title(current: "", previous: nil, selected: building) == building.name)
+        #expect(BuildingScheduling.title(current: "  ", previous: nil, selected: building) == building.name)
+        // Re-picking replaces the previous Building's name...
+        #expect(BuildingScheduling.title(current: building.name, previous: building, selected: other) == other.name)
+        // ...but never a title the user typed.
+        #expect(BuildingScheduling.title(current: "Kitara backstage tour", previous: building, selected: other) == "Kitara backstage tour")
     }
 
     @Test func linkResolution() {
@@ -65,5 +77,9 @@ struct BuildingSchedulingTests {
         #expect(linked.isValid)
         let plain = Event(tripId: "t", type: .food, title: "Lunch", startDate: at(16, 12), endDate: at(16, 13))
         #expect(BuildingLink.resolve(plain, in: [building]) == .none)
+        // The editor resolves its picked id the same way.
+        #expect(BuildingLink.resolve(buildingID: nil, in: [building]) == .none)
+        #expect(BuildingLink.resolve(buildingID: "b-kitara", in: [building]) == .available(building))
+        #expect(BuildingLink.resolve(buildingID: "b-kitara", in: []) == .unavailable(buildingID: "b-kitara"))
     }
 }
