@@ -42,6 +42,7 @@ struct BuildingSchedulingTests {
         #expect(event.note.isEmpty)
         #expect(event.createdAt == now && event.updatedAt == now)
         #expect(event.isValid)
+        #expect(event.isAllDay == nil && event.isTimed, "a scheduled visit is a timed Event (G6)")
     }
 
     @Test func customDurationIsApplied() {

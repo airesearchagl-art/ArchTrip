@@ -52,6 +52,16 @@ struct TripDatesWarningTests {
         #expect(warning(start: at(15, 0), end: at(16, 0), events: .loaded([dropped], complete: false)) == .outside(count: 1, complete: false))
     }
 
+    /// G6: an all-day Event counts by the days it applies to (a stay by its nights).
+    @Test func allDayEventsAreCountedByTheirDays() {
+        let stay = Event(
+            id: "stay", tripId: "trip", type: .hotel, title: "stay",
+            startDate: at(16, 0), endDate: at(18, 0), createdAt: at(1, 0), isAllDay: true
+        ) // nights 16, 17
+        #expect(warning(start: at(16, 0), end: at(17, 0), events: .loaded([stay], complete: true)) == nil)
+        #expect(warning(start: at(15, 0), end: at(16, 0), events: .loaded([stay], complete: true)) == .outside(count: 1, complete: true))
+    }
+
     @Test func unknownWhileLoadingOrAfterFailure() {
         #expect(warning(start: at(15, 0), end: at(16, 0), events: .loading) == .unknown)
         #expect(warning(start: at(15, 0), end: at(16, 0), events: .failed) == .unknown)

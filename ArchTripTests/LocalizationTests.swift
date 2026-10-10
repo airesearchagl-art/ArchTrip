@@ -57,6 +57,22 @@ struct LocalizationTests {
         #expect(String(format: try japanese("New trip dates: %@"), "10月15日 – 10月17日") == "変更後の出張期間：10月15日 – 10月17日")
     }
 
+    @Test func japaneseG6AllDayStrings() throws {
+        let expected = [
+            "All-day": "終日", "All-day & stays": "終日・滞在情報", "Stay": "宿泊", "Rental car": "レンタカー",
+            "Check-in": "チェックイン", "Check-out": "チェックアウト", "Pickup day": "利用開始日", "Return day": "返却日",
+            "First day": "開始日", "Last day": "終了日", "No timed events on this day": "この日の時刻付き予定はありません",
+            "Shown on each night from check-in until the day before check-out.": "チェックイン日からチェックアウト前日までの各夜に表示します。",
+            "Shown on each day from pickup through return.": "利用開始日から返却日までの各日に表示します。",
+            "Shown on each day in this range.": "開始日から終了日までの各日に表示します。",
+            "All-day events don't count toward Travel / Free Time.": "終日の予定は移動時間・空き時間の計算に含まれません。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("Check-in %@ · Check-out %@"), "10月15日", "10月17日") == "チェックイン 10月15日・チェックアウト 10月17日")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")

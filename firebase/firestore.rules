@@ -3,8 +3,9 @@ rules_version = '2';
 // ArchTrip: each signed-in user can only access their own data under users/{uid}:
 // trips/** (Trips and their Events) and buildings/*. Everything else is denied by default.
 //
-// Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId) are
-// omitted from documents when unset (Firestore.Encoder skips nil), so they may be absent.
+// Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId,
+// Event.isAllDay) are omitted from documents when unset (Firestore.Encoder skips nil),
+// so they may be absent.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -25,7 +26,7 @@ service cloud.firestore {
     function isValidEvent(tripId, eventId) {
       let d = request.resource.data;
       let fields = ['id', 'tripId', 'type', 'title', 'startDate', 'endDate', 'locationName', 'note', 'createdAt', 'updatedAt'];
-      return d.keys().hasOnly(fields.concat(['buildingId']))
+      return d.keys().hasOnly(fields.concat(['buildingId', 'isAllDay']))
         && d.keys().hasAll(fields)
         && d.id == eventId
         && d.tripId == tripId
@@ -39,7 +40,11 @@ service cloud.firestore {
         // intentionally not required, so Events stay editable after a Building is deleted.
         && (!('buildingId' in d)
           || (d.buildingId is string && d.buildingId.size() > 0 && d.buildingId.size() <= 200
-            && d.type == 'architecture'));
+            && d.type == 'architecture'))
+        // Optional all-day flag (G6): stays, rental cars and whole-day notes are listed apart
+        // from the timed timeline. Absent or false means a timed Event, so every document
+        // written before G6 keeps its meaning without being touched.
+        && (!('isAllDay' in d) || d.isAllDay is bool);
     }
 
     function tripExists(userId, tripId) {

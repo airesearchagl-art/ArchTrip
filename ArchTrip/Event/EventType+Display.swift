@@ -15,6 +15,15 @@ extension EventType {
         }
     }
 
+    /// Label in the "All-day & stays" section: a hotel is a stay, a car a rental car.
+    var allDayLabel: LocalizedStringKey {
+        switch self {
+        case .hotel: "Stay"
+        case .car: "Rental car"
+        default: label
+        }
+    }
+
     var systemImage: String {
         switch self {
         case .flight: "airplane"

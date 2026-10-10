@@ -17,6 +17,11 @@ struct TimelineTests {
         Event(id: id, tripId: "trip", type: .business, title: id, startDate: start, endDate: end, createdAt: at(1, 0))
     }
 
+    /// An all-day Event stored at local midnight, applying to [start, end).
+    private func allDay(_ id: String, _ type: EventType, _ start: Date, _ end: Date) -> Event {
+        Event(id: id, tripId: "trip", type: type, title: id, startDate: start, endDate: end, createdAt: at(1, 0), isAllDay: true)
+    }
+
     private func ids(_ items: [TimelineItem]) -> [String] {
         items.map { item in
             switch item {
@@ -142,6 +147,67 @@ struct TimelineTests {
         )
         #expect(outside.map(\.id) == ["before", "marker", "spills", "after"])
         #expect(TimelineBuilder.events(outside: trip, from: [inside, endsAtMidnight], calendar: calendar).isEmpty)
+    }
+
+    // MARK: All-day (G6)
+
+    @Test func allDayEventsNeverEnterTheTimedTimelineOrItsGaps() {
+        let stay = allDay("stay", .hotel, at(15, 0), at(17, 0))
+        let a = event("a", at(16, 9), at(16, 10))
+        let b = event("b", at(16, 11), at(16, 12))
+        let items = TimelineBuilder.items(for: at(16, 0), events: [stay, a, b], calendar: calendar)
+        #expect(ids(items) == ["a", "free(10:0-11:0)", "b"], "the gap is unchanged by the stay")
+        #expect(TimelineBuilder.events(on: at(16, 0), from: [stay], calendar: calendar).isEmpty)
+        #expect(TimelineBuilder.items(for: at(15, 0), events: [stay], calendar: calendar).isEmpty)
+        // A stored false is timed, like a missing flag.
+        var flaggedFalse = event("f", at(16, 13), at(16, 14))
+        flaggedFalse.isAllDay = false
+        #expect(TimelineBuilder.events(on: at(16, 0), from: [flaggedFalse], calendar: calendar).map(\.id) == ["f"])
+        #expect(TimelineBuilder.allDayEvents(on: at(16, 0), from: [flaggedFalse], calendar: calendar).isEmpty)
+    }
+
+    @Test func allDayEventsOnADayInSectionOrder() {
+        let stay = allDay("stay", .hotel, at(15, 0), at(17, 0)) // nights 15, 16
+        let car = allDay("car", .car, at(15, 0), at(18, 0)) // days 15–17
+        let laterNote = allDay("note-b", .other, at(16, 0), at(17, 0))
+        let earlierNote = allDay("note-a", .business, at(15, 0), at(17, 0))
+        let timed = event("timed", at(16, 9), at(16, 10))
+        let all = [laterNote, timed, car, earlierNote, stay]
+        #expect(TimelineBuilder.allDayEvents(on: at(16, 0), from: all, calendar: calendar).map(\.id) == ["stay", "car", "note-a", "note-b"])
+        #expect(TimelineBuilder.allDayEvents(on: at(15, 0), from: all, calendar: calendar).map(\.id) == ["stay", "car", "note-a"])
+        #expect(TimelineBuilder.allDayEvents(on: at(17, 0), from: all, calendar: calendar).map(\.id) == ["car"])
+        #expect(TimelineBuilder.allDayEvents(on: at(18, 0), from: all, calendar: calendar).isEmpty)
+        #expect(TimelineBuilder.allDayEvents(on: at(14, 0), from: all, calendar: calendar).isEmpty)
+    }
+
+    @Test func tripDaysReachEveryDayOfAnAllDayEvent() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(16, 0))
+        let car = allDay("car", .car, at(19, 0), at(22, 0)) // 19, 20, 21
+        let days = TimelineBuilder.days(for: trip, events: [car], calendar: calendar)
+        #expect(days == [at(15, 0), at(16, 0), at(19, 0), at(20, 0), at(21, 0)])
+    }
+
+    @Test func allDayEventsOutsideTripDatesAreFlagged() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(17, 0))
+        let inside = allDay("inside", .hotel, at(15, 0), at(17, 0)) // nights 15, 16
+        let spills = allDay("spills", .hotel, at(17, 0), at(19, 0)) // nights 17, 18
+        let before = allDay("before", .car, at(13, 0), at(15, 0)) // 13, 14
+        let outside = TimelineBuilder.events(outside: trip, from: [inside, spills, before], calendar: calendar)
+        #expect(outside.map(\.id) == ["before", "spills"])
+        // Check-out the day after the Trip ends is still inside: the last night is the 17th.
+        let lastNight = allDay("last", .hotel, at(17, 0), at(18, 0))
+        #expect(TimelineBuilder.events(outside: trip, from: [lastNight], calendar: calendar).isEmpty)
+    }
+
+    @Test func firstAndLastDayForTimedAndAllDayEvents() {
+        let overnight = event("night", at(15, 22), at(16, 7))
+        #expect(TimelineBuilder.firstDay(of: overnight, calendar: calendar) == at(15, 0))
+        #expect(TimelineBuilder.lastDay(of: overnight, calendar: calendar) == at(16, 0))
+        let atMidnight = event("late", at(15, 23), at(16, 0))
+        #expect(TimelineBuilder.lastDay(of: atMidnight, calendar: calendar) == at(15, 0))
+        let stay = allDay("stay", .hotel, at(15, 0), at(17, 0))
+        #expect(TimelineBuilder.firstDay(of: stay, calendar: calendar) == at(15, 0))
+        #expect(TimelineBuilder.lastDay(of: stay, calendar: calendar) == at(16, 0))
     }
 
     @Test func hoursAndMinutes() {
