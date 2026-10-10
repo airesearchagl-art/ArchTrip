@@ -875,16 +875,6 @@
         }
       }
     },
-    "Free time" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空き時間"
-          }
-        }
-      }
-    },
     "High" : {
       "localizations" : {
         "ja" : {
@@ -1571,6 +1561,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電車"
+          }
+        }
+      }
+    },
+    "Travel / Free Time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動時間・空き時間"
           }
         }
       }

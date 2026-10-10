@@ -2,7 +2,9 @@ import Foundation
 
 nonisolated enum TimelineItem: Identifiable, Equatable, Sendable {
     case event(Event)
-    /// Derived gap between two adjacent Events. Never persisted.
+    /// Derived gap between two adjacent Events. Never persisted. Shown as
+    /// "Travel / Free Time": the time available for moving between Events,
+    /// not a computed travel time.
     case freeTime(start: Date, end: Date)
 
     var id: String {

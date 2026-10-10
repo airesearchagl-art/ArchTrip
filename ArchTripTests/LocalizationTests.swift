@@ -26,7 +26,7 @@ struct LocalizationTests {
     @Test func japaneseCoreUIStrings() throws {
         let expected = [
             "Upcoming": "予定の出張", "Past": "過去の出張", "Add Trip": "出張を追加",
-            "Free time": "空き時間", "Settings": "設定", "Language": "言語",
+            "Travel / Free Time": "移動時間・空き時間", "Settings": "設定", "Language": "言語",
             "Developer Diagnostics": "開発者診断", "Couldn't save changes": "変更を保存できませんでした",
             "Architecture": "建築", "Add to Trip": "出張に追加", "Open in Apple Maps": "Apple Mapsで開く",
             "Visit duration": "見学時間", "This building is no longer available": "この建築は削除されています",
@@ -34,6 +34,12 @@ struct LocalizationTests {
         for (key, value) in expected {
             #expect(try japanese(key) == value, "\(key)")
         }
+    }
+
+    /// G6-UX-01: the gap row is labelled "Travel / Free Time"; the old key is gone.
+    @Test func travelFreeTimeWording() throws {
+        #expect(try japanese("Travel / Free Time") == "移動時間・空き時間")
+        #expect(try japanese("Free time") == "<missing>")
     }
 
     @Test func japaneseG5RepairStrings() throws {

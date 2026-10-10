@@ -245,6 +245,8 @@ struct EventRow: View {
     }
 }
 
+/// The gap between two timed Events (G6-UX-01: "Travel / Free Time"). The duration is
+/// the whole gap, usable for moving between Events; it is not an estimated travel time.
 struct FreeTimeRow: View {
     let start: Date
     let end: Date
@@ -255,7 +257,7 @@ struct FreeTimeRow: View {
             line
             HStack(spacing: 4) {
                 Image(systemName: "cup.and.saucer.fill")
-                Text("Free time")
+                Text("Travel / Free Time")
                 durationText(duration)
             }
             .lineLimit(1)
