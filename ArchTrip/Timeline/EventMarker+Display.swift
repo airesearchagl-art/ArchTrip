@@ -1,12 +1,12 @@
 import Foundation
 
-/// What a derived marker row shows from its source stay (G6-UX-05-RF-Display-01). Each
-/// value is read from the canonical hotel Event when the row is drawn, so an edit of the
-/// stay, or a cleared field, shows on the check-in and the check-out marker at once;
-/// nothing is copied into another document or stored anywhere.
-extension HotelMarker {
+/// What a derived marker row shows from its source Event (G6-UX-05-RF-Display-01): a stay
+/// or, since G6-UX-07, a rental car. Each value is read from the canonical Event when the
+/// row is drawn, so an edit of it, or a cleared field, shows on both of its markers at
+/// once; nothing is copied into another document or stored anywhere.
+extension EventMarker {
     /// A note preview is at most this many lines and characters. The full note stays in
-    /// the stay's editor, which the marker opens.
+    /// the Event's editor, which the marker opens.
     static let notePreviewMaxLines = 2
     static let notePreviewMaxCharacters = 100
 

@@ -4,8 +4,8 @@ rules_version = '2';
 // trips/** (Trips and their Events) and buildings/*. Everything else is denied by default.
 //
 // Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId,
-// Event.isAllDay, Event.checkInMinutes/checkOutMinutes) are omitted from documents when
-// unset (Firestore.Encoder skips nil), so they may be absent.
+// Event.isAllDay, Event.checkInMinutes/checkOutMinutes, Event.pickupMinutes/returnMinutes)
+// are omitted from documents when unset (Firestore.Encoder skips nil), so they may be absent.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -30,10 +30,17 @@ service cloud.firestore {
         && d.type == 'hotel' && ('isAllDay' in d) && d.isAllDay == true;
     }
 
+    // A rental car's optional clock time (G6-UX-07): minutes after local midnight on the
+    // pickup day or the return day, on all-day car Events only.
+    function isCarClockTime(d, minutes) {
+      return minutes is int && minutes >= 0 && minutes < 1440
+        && d.type == 'car' && ('isAllDay' in d) && d.isAllDay == true;
+    }
+
     function isValidEvent(tripId, eventId) {
       let d = request.resource.data;
       let fields = ['id', 'tripId', 'type', 'title', 'startDate', 'endDate', 'locationName', 'note', 'createdAt', 'updatedAt'];
-      return d.keys().hasOnly(fields.concat(['buildingId', 'isAllDay', 'checkInMinutes', 'checkOutMinutes']))
+      return d.keys().hasOnly(fields.concat(['buildingId', 'isAllDay', 'checkInMinutes', 'checkOutMinutes', 'pickupMinutes', 'returnMinutes']))
         && d.keys().hasAll(fields)
         && d.id == eventId
         && d.tripId == tripId
@@ -53,7 +60,9 @@ service cloud.firestore {
         // written before G6 keeps its meaning without being touched.
         && (!('isAllDay' in d) || d.isAllDay is bool)
         && (!('checkInMinutes' in d) || isHotelClockTime(d, d.checkInMinutes))
-        && (!('checkOutMinutes' in d) || isHotelClockTime(d, d.checkOutMinutes));
+        && (!('checkOutMinutes' in d) || isHotelClockTime(d, d.checkOutMinutes))
+        && (!('pickupMinutes' in d) || isCarClockTime(d, d.pickupMinutes))
+        && (!('returnMinutes' in d) || isCarClockTime(d, d.returnMinutes));
     }
 
     function tripExists(userId, tripId) {

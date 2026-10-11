@@ -126,6 +126,47 @@ struct DocumentUpdateTests {
         }
     }
 
+    private func makeRental(pickupMinutes: Int? = nil, returnMinutes: Int? = nil) -> Event {
+        Event(
+            id: "car-1", tripId: "trip-1", type: .car, title: "Rental", startDate: date, endDate: date,
+            createdAt: date, isAllDay: true, pickupMinutes: pickupMinutes, returnMinutes: returnMinutes
+        )
+    }
+
+    /// G6-UX-07: a cleared rental clock time deletes its field; a set one is written as an
+    /// int; a time that was never stored is not deleted; hotel fields are never touched.
+    @Test func rentalUpdateDeletesAClearedClockTime() throws {
+        let both = makeRental(pickupMinutes: 10 * 60, returnMinutes: 17 * 60)
+        let cleared = try DocumentUpdate.fields(for: makeRental(pickupMinutes: 10 * 60), replacing: both)
+        #expect(cleared["pickupMinutes"] as? Int == 600)
+        #expect(cleared["returnMinutes"] is FieldValue, "a stored returnMinutes cleared to nil must delete the field")
+        #expect(cleared["createdAt"] == nil)
+        #expect(Set(cleared.keys) == requiredKeys.union(["isAllDay", "pickupMinutes", "returnMinutes"]))
+        #expect(cleared.filter { $0.value is FieldValue }.map(\.key) == ["returnMinutes"], "exactly one delete")
+
+        let neverSet = try DocumentUpdate.fields(for: makeRental(), replacing: makeRental())
+        #expect(neverSet["pickupMinutes"] == nil && neverSet["returnMinutes"] == nil)
+        #expect(Set(neverSet.keys) == requiredKeys.union(["isAllDay"]))
+
+        // Converting the rental to timed clears everything that was stored, and only that.
+        var timed = both
+        timed.isAllDay = nil
+        timed.pickupMinutes = nil
+        timed.returnMinutes = nil
+        let converted = try DocumentUpdate.fields(for: timed, replacing: both)
+        #expect(Set(converted.filter { $0.value is FieldValue }.map(\.key)) == ["isAllDay", "pickupMinutes", "returnMinutes"])
+        #expect(converted["checkInMinutes"] == nil && converted["checkOutMinutes"] == nil && converted["buildingId"] == nil)
+
+        // Changing the type in the editor leaves the rental times nil: they are deleted, not kept.
+        var retyped = both
+        retyped.type = .hotel
+        retyped.pickupMinutes = nil
+        retyped.returnMinutes = nil
+        let fields = try DocumentUpdate.fields(for: retyped, replacing: both)
+        #expect(fields["pickupMinutes"] is FieldValue && fields["returnMinutes"] is FieldValue)
+        #expect(fields["checkInMinutes"] == nil && fields["checkOutMinutes"] == nil)
+    }
+
     @Test func buildingUpdateDeletesClearedOptionals() throws {
         let full = Building(id: "b2", name: "Full", completedYear: 1997, latitude: 43.0, longitude: 141.3, createdAt: date)
         var stripped = full
@@ -159,9 +200,11 @@ struct DocumentUpdateTests {
         full.isAllDay = true
         full.checkInMinutes = 1
         full.checkOutMinutes = 2
+        full.pickupMinutes = 3
+        full.returnMinutes = 4
         let event = try Firestore.Encoder().encode(full)
         #expect(Set(Event.optionalFields).isSubset(of: Set(event.keys)))
-        #expect(Event.optionalFields == ["buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes"])
+        #expect(Event.optionalFields == ["buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes", "pickupMinutes", "returnMinutes"])
 
         let building = try Firestore.Encoder().encode(
             Building(id: "b3", name: "Full", completedYear: 2000, latitude: 1, longitude: 2, createdAt: date)

@@ -1365,6 +1365,16 @@
         }
       }
     },
+    "Pickup time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貸出時刻"
+          }
+        }
+      }
+    },
     "Place search" : {
       "localizations" : {
         "ja" : {
@@ -1415,12 +1425,62 @@
         }
       }
     },
+    "Rental car pickup" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レンタカー貸出"
+          }
+        }
+      }
+    },
+    "Rental car return" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レンタカー返却"
+          }
+        }
+      }
+    },
+    "Rental car: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レンタカー：%@"
+          }
+        }
+      }
+    },
+    "Rental times" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貸出・返却の時刻"
+          }
+        }
+      }
+    },
     "Return day" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "返却日"
+          }
+        }
+      }
+    },
+    "Return time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返却時刻"
           }
         }
       }
@@ -1481,6 +1541,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "チェックアウト時刻を指定する"
+          }
+        }
+      }
+    },
+    "Set pickup time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "貸出時刻を指定する"
+          }
+        }
+      }
+    },
+    "Set return time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返却時刻を指定する"
           }
         }
       }
@@ -1571,6 +1651,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "時刻付きの予定一覧に、それぞれの日のチェックイン・チェックアウトの目印として表示します。宿泊自体は「終日・滞在情報」に残ります。"
+          }
+        }
+      }
+    },
+    "Shown on the timeline as pickup and return markers on their own days. The rental car itself stays under All-day & stays." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時刻付きの予定一覧に、それぞれの日の貸出・返却の目印として表示します。レンタカー自体は「終日・滞在情報」に残ります。"
           }
         }
       }

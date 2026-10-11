@@ -22,6 +22,11 @@ struct EventEditorView: View {
     @State private var checkInTime: Date
     @State private var hasCheckOutTime: Bool
     @State private var checkOutTime: Date
+    /// Rental car clock times (G6-UX-07): kept while hidden, saved for an all-day car only.
+    @State private var hasPickupTime: Bool
+    @State private var pickupTime: Date
+    @State private var hasReturnTime: Bool
+    @State private var returnTime: Date
     @State private var locationName: String
     @State private var note: String
     /// Link to an existing Building (architecture Events only, RF-04).
@@ -51,6 +56,11 @@ struct EventEditorView: View {
         _hasCheckOutTime = State(initialValue: existing?.checkOutMinutes != nil)
         _checkInTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.checkInMinutes ?? 15 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
         _checkOutTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.checkOutMinutes ?? 10 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
+        // Rental car defaults when enabled: pickup 10:00, return 17:00.
+        _hasPickupTime = State(initialValue: existing?.pickupMinutes != nil)
+        _hasReturnTime = State(initialValue: existing?.returnMinutes != nil)
+        _pickupTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.pickupMinutes ?? 10 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
+        _returnTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.returnMinutes ?? 17 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
         _locationName = State(initialValue: existing?.locationName ?? "")
         _note = State(initialValue: existing?.note ?? "")
         _buildingId = State(initialValue: existing?.buildingId)
@@ -107,6 +117,9 @@ struct EventEditorView: View {
                 }
                 if type == .hotel, isAllDay {
                     clockTimesSection
+                }
+                if type == .car, isAllDay {
+                    rentalTimesSection
                 }
                 if type == .architecture {
                     buildingSection
@@ -235,6 +248,28 @@ struct EventEditorView: View {
         }
     }
 
+    // MARK: Rental car clock times (G6-UX-07)
+
+    /// Optional pickup / return clock times of a rental car, each on its own switch. They
+    /// become markers on the timed timeline (the return marker on the return day, which is
+    /// a day of the rental); the car itself stays all-day. Dates are set above.
+    private var rentalTimesSection: some View {
+        Section {
+            Toggle("Set pickup time", isOn: $hasPickupTime)
+            if hasPickupTime {
+                DatePicker("Pickup time", selection: $pickupTime, displayedComponents: .hourAndMinute)
+            }
+            Toggle("Set return time", isOn: $hasReturnTime)
+            if hasReturnTime {
+                DatePicker("Return time", selection: $returnTime, displayedComponents: .hourAndMinute)
+            }
+        } header: {
+            Text("Rental times")
+        } footer: {
+            Text("Shown on the timeline as pickup and return markers on their own days. The rental car itself stays under All-day & stays.")
+        }
+    }
+
     // MARK: Building (RF-04)
 
     /// Pick an existing Building (no duplicate Buildings, no MapKit search here) or
@@ -302,7 +337,13 @@ struct EventEditorView: View {
             checkInMinutes: type == .hotel && isAllDay && hasCheckInTime
                 ? AllDaySchedule.minutes(of: checkInTime, calendar: calendar) : nil,
             checkOutMinutes: type == .hotel && isAllDay && hasCheckOutTime
-                ? AllDaySchedule.minutes(of: checkOutTime, calendar: calendar) : nil
+                ? AllDaySchedule.minutes(of: checkOutTime, calendar: calendar) : nil,
+            // Pickup / return times belong to all-day rental cars only (G6-UX-07); any
+            // other type leaves them nil, which removes stored ones on update.
+            pickupMinutes: type == .car && isAllDay && hasPickupTime
+                ? AllDaySchedule.minutes(of: pickupTime, calendar: calendar) : nil,
+            returnMinutes: type == .car && isAllDay && hasReturnTime
+                ? AllDaySchedule.minutes(of: returnTime, calendar: calendar) : nil
         )
         guard event.isValid, !hasSaved else { return }
         hasSaved = true

@@ -9,9 +9,10 @@ nonisolated enum TimelineItem: Identifiable, Equatable, Sendable {
     /// The current time, on today's timeline only (G6-UX-06). Display-only: never
     /// persisted and never part of the gap calculation.
     case now(Date)
-    /// A hotel stay's derived check-in or check-out point (G6-UX-05). Display-only: it
-    /// opens the stay's editor and disappears with the stay or its clock time.
-    case marker(HotelMarker)
+    /// An all-day Event's derived clock-time point: a stay's check-in / check-out (G6-UX-05)
+    /// or a rental car's pickup / return (G6-UX-07). Display-only: it opens the Event's
+    /// editor and disappears with the Event or its clock time.
+    case marker(EventMarker)
 
     var id: String {
         switch self {
@@ -70,9 +71,10 @@ nonisolated enum TimelineBuilder {
             items.append(.event(event))
             latestEnd = max(latestEnd ?? event.endDate, event.endDate)
         }
-        // Hotel check-in / check-out markers (G6-UX-05) precede an Event starting at the
-        // same instant; the current time follows everything that has begun.
-        for marker in HotelMarker.markers(on: day, from: events, calendar: calendar) {
+        // Clock-time markers (hotel check-in / check-out, rental car pickup / return)
+        // precede an Event starting at the same instant; the current time follows
+        // everything that has begun.
+        for marker in EventMarker.markers(on: day, from: events, calendar: calendar) {
             insert(.marker(marker), at: marker.time, afterTies: false, into: &items)
         }
         if let now, calendar.isDate(now, inSameDayAs: day) {
@@ -149,7 +151,8 @@ nonisolated enum TimelineBuilder {
                 day = next
             }
             // A check-out marker falls on the day after the last night: keep it reachable.
-            for marker in HotelMarker.markers(for: event, calendar: calendar) where days.count < limit {
+            // (A rental car's markers fall on its own days, already added above.)
+            for marker in EventMarker.markers(for: event, calendar: calendar) where days.count < limit {
                 days.insert(calendar.startOfDay(for: marker.time))
             }
         }

@@ -440,6 +440,74 @@ struct TimelineTests {
         #expect(TimelineBuilder.events(outside: trip, from: [hotel], calendar: calendar).isEmpty)
     }
 
+    // MARK: Rental car markers (G6-UX-07)
+
+    private func rental(
+        _ id: String, pickup: Int, return returnDay: Int, in pickupMinutes: Int? = nil, out returnMinutes: Int? = nil
+    ) -> Event {
+        let dates = AllDaySchedule.dates(firstDay: at(pickup, 0), lastDay: at(returnDay, 0), calendar: calendar)
+        return Event(
+            id: id, tripId: "trip", type: .car, title: id, startDate: dates.start, endDate: dates.end,
+            createdAt: at(1, 0), isAllDay: true, pickupMinutes: pickupMinutes, returnMinutes: returnMinutes
+        )
+    }
+
+    @Test func rentalMarkersJoinTheTimedTimelineOnTheirDays() {
+        let car = rental("car", pickup: 15, return: 17, in: 18 * 60 + 30, out: 14 * 60)
+        let flight = event("flight", at(15, 13), at(15, 14))
+        let dinner = event("dinner", at(15, 19), at(15, 20))
+        let day15 = TimelineBuilder.items(for: at(15, 0), events: [car, flight, dinner], calendar: calendar)
+        #expect(ids(day15) == ["flight", "free(14:0-18:30)", "marker-car-pickup", "free(18:30-19:0)", "dinner"])
+        #expect(freeSeconds(day15) == 300 * 60, "the gap total is unchanged by the marker")
+        #expect(noNegativeOrEmptyGaps(day15))
+        #expect(TimelineBuilder.items(for: at(16, 0), events: [car], calendar: calendar).isEmpty)
+        // The return day is a day of the rental: marker on the timeline, car in the all-day section.
+        #expect(ids(TimelineBuilder.items(for: at(17, 0), events: [car], calendar: calendar)) == ["marker-car-return"])
+        #expect(TimelineBuilder.allDayEvents(on: at(17, 0), from: [car], calendar: calendar).map(\.id) == ["car"])
+        #expect(TimelineBuilder.allDayEvents(on: at(18, 0), from: [car], calendar: calendar).isEmpty)
+        #expect(TimelineBuilder.items(for: at(18, 0), events: [car], calendar: calendar).isEmpty)
+    }
+
+    @Test func rentalMarkersNeverCreateOrShortenGapsAndOrderWithNow() {
+        let car = rental("car", pickup: 15, return: 15, in: 10 * 60, out: 18 * 60)
+        let a = event("a", at(15, 9, 50), at(15, 9, 55))
+        let b = event("b", at(15, 10, 10), at(15, 11)) // 15 min apart: no gap row, marker between
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [car, a, b], calendar: calendar)) == ["a", "marker-car-pickup", "b", "marker-car-return"])
+        // A marker during an ongoing Event follows that Event's row.
+        let long = event("long", at(15, 9), at(15, 12))
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [car, long], calendar: calendar)) == ["long", "marker-car-pickup", "marker-car-return"])
+        // Pickup precedes an Event at the same instant; the current time follows it.
+        let meeting = event("meeting", at(15, 10), at(15, 11))
+        let atTen = TimelineBuilder.items(for: at(15, 0), events: [car, meeting], calendar: calendar, now: at(15, 10))
+        #expect(ids(atTen) == ["marker-car-pickup", "meeting", "now(10:0)", "marker-car-return"])
+        let later = TimelineBuilder.items(for: at(15, 0), events: [car, meeting], calendar: calendar, now: at(15, 14))
+        #expect(ids(later) == ["marker-car-pickup", "meeting", "now(14:0)", "marker-car-return"])
+        #expect(freeSeconds(later) == 0, "markers and the current time alone never make a gap")
+        // Without clock times nothing changes.
+        let silent = rental("silent", pickup: 15, return: 15)
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [silent, a, b], calendar: calendar)) == ["a", "b"])
+    }
+
+    @Test func stayAndRentalMarkersAtTheSameInstant() {
+        let hotel = stay("stay", checkIn: 15, checkOut: 17, out: 10 * 60)
+        let car = rental("car", pickup: 17, return: 18, in: 10 * 60)
+        let items = TimelineBuilder.items(for: at(17, 0), events: [car, hotel], calendar: calendar, now: at(17, 10))
+        #expect(ids(items) == ["marker-stay-checkOut", "marker-car-pickup", "now(10:0)"])
+    }
+
+    /// Days and RF-02 warnings count the rental by its own days; its markers add nothing.
+    @Test func tripDaysAndRangeWarningsCountTheRentalByItsDays() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(17, 0))
+        let car = rental("car", pickup: 15, return: 17, in: 10 * 60, out: 17 * 60)
+        #expect(TimelineBuilder.days(for: trip, events: [car], calendar: calendar) == [at(15, 0), at(16, 0), at(17, 0)])
+        #expect(TimelineBuilder.events(outside: trip, from: [car], calendar: calendar).isEmpty)
+        let late = rental("late", pickup: 15, return: 18, out: 17 * 60)
+        #expect(TimelineBuilder.days(for: trip, events: [late], calendar: calendar) == [at(15, 0), at(16, 0), at(17, 0), at(18, 0)])
+        #expect(TimelineBuilder.events(outside: trip, from: [late], calendar: calendar).map(\.id) == ["late"])
+        let silent = rental("silent", pickup: 15, return: 18)
+        #expect(TimelineBuilder.events(outside: trip, from: [silent], calendar: calendar).map(\.id) == ["silent"])
+    }
+
     @Test func hoursAndMinutes() {
         #expect(TimelineBuilder.hoursAndMinutes(from: at(16, 9), to: at(16, 11)) == (2, 0))
         #expect(TimelineBuilder.hoursAndMinutes(from: at(16, 9), to: at(16, 9, 45)) == (0, 45))
