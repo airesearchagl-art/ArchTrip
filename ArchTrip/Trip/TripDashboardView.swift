@@ -48,10 +48,53 @@ struct TripDashboardView: View {
     private func dashboard(_ trip: Trip) -> some View {
         let days = TimelineBuilder.days(for: trip, events: events, calendar: calendar)
         let day = currentDay(in: days)
-        let items = TimelineBuilder.items(for: day, events: events, calendar: calendar)
-        let allDay = TimelineBuilder.allDayEvents(on: day, from: events, calendar: calendar)
-        let emptyText: LocalizedStringKey = allDay.isEmpty ? "No events on this day" : "No timed events on this day"
         let isOutside = { (day: Date) in TimelineBuilder.isOutside(day, trip: trip, calendar: calendar) }
+        // Re-evaluated at the start of every minute while on screen, and again when the
+        // app returns to the foreground, so the current-time row and the completed
+        // styling stay right without timers, polling or network (G6-UX-06).
+        return TimelineView(.everyMinute) { context in
+            timeline(trip, days: days, day: day, isOutside: isOutside, now: context.date)
+        }
+        .navigationTitle(Text(verbatim: trip.title))
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    editorTarget = .new(day: day)
+                } label: {
+                    Label("Add Event", systemImage: "plus")
+                }
+            }
+            ToolbarItem(placement: .secondaryAction) {
+                Button {
+                    editingTrip = true
+                } label: {
+                    Label("Edit Trip", systemImage: "pencil")
+                }
+            }
+        }
+        .sheet(item: $editorTarget) { target in
+            switch target {
+            case .new(let day):
+                EventEditorView(tripID: trip.id, existing: nil, defaultDay: day)
+            case .edit(let event):
+                EventEditorView(tripID: trip.id, existing: event, defaultDay: day)
+            }
+        }
+        .sheet(isPresented: $editingTrip) {
+            TripEditorView(trip: trip, events: eventLoadState)
+        }
+    }
+
+    private func timeline(
+        _ trip: Trip, days: [Date], day: Date, isOutside: @escaping (Date) -> Bool, now: Date
+    ) -> some View {
+        let items = TimelineBuilder.items(for: day, events: events, calendar: calendar, now: now)
+        let allDay = TimelineBuilder.allDayEvents(on: day, from: events, calendar: calendar)
+        let hasTimedEvents = items.contains { item in
+            if case .event = item { return true }
+            return false
+        }
+        let emptyText: LocalizedStringKey = allDay.isEmpty ? "No events on this day" : "No timed events on this day"
         return List {
             Section {
                 VStack(alignment: .leading, spacing: 4) {
@@ -81,27 +124,28 @@ struct TripDashboardView: View {
             }
 
             Section {
-                if items.isEmpty {
+                if !hasTimedEvents {
                     Text(emptyText)
                         .foregroundStyle(.secondary)
-                } else {
-                    ForEach(items) { item in
-                        switch item {
-                        case .event(let event):
-                            Button {
-                                editorTarget = .edit(event)
-                            } label: {
-                                EventRow(event: event, day: day)
-                            }
-                            .tint(.primary)
-                            .swipeActions {
-                                Button("Delete", role: .destructive) {
-                                    session.deleteEvent(event)
-                                }
-                            }
-                        case .freeTime(let start, let end):
-                            FreeTimeRow(start: start, end: end)
+                }
+                ForEach(items) { item in
+                    switch item {
+                    case .event(let event):
+                        Button {
+                            editorTarget = .edit(event)
+                        } label: {
+                            EventRow(event: event, day: day, isCompleted: TimelineBuilder.isCompleted(event, at: now))
                         }
+                        .tint(.primary)
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                session.deleteEvent(event)
+                            }
+                        }
+                    case .freeTime(let start, let end):
+                        FreeTimeRow(start: start, end: end)
+                    case .now(let date):
+                        NowRow(date: date)
                     }
                 }
             } header: {
@@ -137,34 +181,6 @@ struct TripDashboardView: View {
                     Text("All-day & stays")
                 }
             }
-        }
-        .navigationTitle(Text(verbatim: trip.title))
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button {
-                    editorTarget = .new(day: day)
-                } label: {
-                    Label("Add Event", systemImage: "plus")
-                }
-            }
-            ToolbarItem(placement: .secondaryAction) {
-                Button {
-                    editingTrip = true
-                } label: {
-                    Label("Edit Trip", systemImage: "pencil")
-                }
-            }
-        }
-        .sheet(item: $editorTarget) { target in
-            switch target {
-            case .new(let day):
-                EventEditorView(tripID: trip.id, existing: nil, defaultDay: day)
-            case .edit(let event):
-                EventEditorView(tripID: trip.id, existing: event, defaultDay: day)
-            }
-        }
-        .sheet(isPresented: $editingTrip) {
-            TripEditorView(trip: trip, events: eventLoadState)
         }
     }
 
@@ -240,6 +256,8 @@ private struct DayStrip: View {
 struct EventRow: View {
     let event: Event
     let day: Date
+    /// G6-UX-06: a timed Event that has ended is subdued, still legible and editable.
+    var isCompleted = false
 
     @Environment(\.locale) private var locale
 
@@ -255,6 +273,7 @@ struct EventRow: View {
                     .foregroundStyle(.secondary)
                 Text(verbatim: event.title)
                     .font(.body.weight(.semibold))
+                    .foregroundStyle(isCompleted ? .secondary : .primary)
                 HStack(spacing: 4) {
                     Text(event.type.label)
                     if !event.locationName.isEmpty {
@@ -266,6 +285,42 @@ struct EventRow: View {
             }
         }
         .padding(.vertical, 2)
+        .opacity(isCompleted ? 0.6 : 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isCompleted ? Text("Completed") : Text(verbatim: ""))
+    }
+}
+
+/// The current time on today's timeline (G6-UX-06): a red rule with a text label and the
+/// time, so colour is never the only cue. It marks an instant, not a busy period.
+struct NowRow: View {
+    let date: Date
+
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        HStack(spacing: 8) {
+            line
+            HStack(spacing: 4) {
+                Image(systemName: "clock.fill")
+                Text("Now")
+                Text(verbatim: DateFormatting.time(date, locale: locale))
+                    .monospacedDigit()
+            }
+            .lineLimit(1)
+            .layoutPriority(1)
+            line
+        }
+        .font(.subheadline.weight(.semibold))
+        .foregroundStyle(.red)
+        .listRowBackground(Color.red.opacity(0.06))
+        .accessibilityElement(children: .combine)
+    }
+
+    private var line: some View {
+        Rectangle()
+            .fill(.red)
+            .frame(maxWidth: .infinity, maxHeight: 2)
     }
 }
 

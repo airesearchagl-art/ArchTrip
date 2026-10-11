@@ -28,7 +28,24 @@ struct TimelineTests {
             case .event(let event): event.id
             case .freeTime(let start, let end):
                 "free(\(calendar.component(.hour, from: start)):\(calendar.component(.minute, from: start))-\(calendar.component(.hour, from: end)):\(calendar.component(.minute, from: end)))"
+            case .now(let date):
+                "now(\(calendar.component(.hour, from: date)):\(calendar.component(.minute, from: date)))"
             }
+        }
+    }
+
+    /// Travel / Free Time seconds in `items`, to check that splitting changes nothing.
+    private func freeSeconds(_ items: [TimelineItem]) -> TimeInterval {
+        items.reduce(0) { total, item in
+            if case .freeTime(let start, let end) = item { return total + end.timeIntervalSince(start) }
+            return total
+        }
+    }
+
+    private func noNegativeOrEmptyGaps(_ items: [TimelineItem]) -> Bool {
+        items.allSatisfy { item in
+            if case .freeTime(let start, let end) = item { return end > start }
+            return true
         }
     }
 
@@ -208,6 +225,125 @@ struct TimelineTests {
         let stay = allDay("stay", .hotel, at(15, 0), at(17, 0))
         #expect(TimelineBuilder.firstDay(of: stay, calendar: calendar) == at(15, 0))
         #expect(TimelineBuilder.lastDay(of: stay, calendar: calendar) == at(16, 0))
+    }
+
+    // MARK: Current time (G6-UX-06)
+
+    private var dayPlan: [Event] {
+        [
+            event("a", at(16, 9), at(16, 10)),
+            event("b", at(16, 11), at(16, 12)), // 60 min gap before: Travel / Free Time
+            event("c", at(16, 12, 15), at(16, 13)), // 15 min gap before: no row
+            event("d", at(16, 15), at(16, 16)), // 120 min gap before
+        ]
+    }
+
+    private func items(now: Date?) -> [TimelineItem] {
+        TimelineBuilder.items(for: at(16, 0), events: dayPlan, calendar: calendar, now: now)
+    }
+
+    @Test func withoutNowTheTimelineIsUnchanged() {
+        #expect(ids(items(now: nil)) == ["a", "free(10:0-11:0)", "b", "c", "free(13:0-15:0)", "d"])
+    }
+
+    @Test func nowBeforeTheFirstEvent() {
+        #expect(ids(items(now: at(16, 8, 30))) == ["now(8:30)", "a", "free(10:0-11:0)", "b", "c", "free(13:0-15:0)", "d"])
+    }
+
+    @Test func nowBetweenEventsWithoutAGapRow() {
+        #expect(ids(items(now: at(16, 12, 5))) == ["a", "free(10:0-11:0)", "b", "now(12:5)", "c", "free(13:0-15:0)", "d"])
+    }
+
+    @Test func nowInsideAGapSplitsItsDisplayOnly() {
+        let result = items(now: at(16, 10, 20))
+        #expect(ids(result) == ["a", "free(10:0-10:20)", "now(10:20)", "free(10:20-11:0)", "b", "c", "free(13:0-15:0)", "d"])
+        #expect(freeSeconds(result) == freeSeconds(items(now: nil)), "the total gap time is unchanged")
+        #expect(noNegativeOrEmptyGaps(result))
+    }
+
+    @Test func nowDuringAnOngoingEventFollowsIt() {
+        #expect(ids(items(now: at(16, 9, 30))) == ["a", "now(9:30)", "free(10:0-11:0)", "b", "c", "free(13:0-15:0)", "d"])
+    }
+
+    @Test func nowExactlyAtAnEventStartFollowsIt() {
+        #expect(ids(items(now: at(16, 11))) == ["a", "free(10:0-11:0)", "b", "now(11:0)", "c", "free(13:0-15:0)", "d"])
+    }
+
+    @Test func nowExactlyAtAnEventEndSitsBeforeTheGapWithoutSplitting() {
+        let result = items(now: at(16, 10))
+        #expect(ids(result) == ["a", "now(10:0)", "free(10:0-11:0)", "b", "c", "free(13:0-15:0)", "d"])
+        #expect(noNegativeOrEmptyGaps(result))
+        // The Event ending exactly now is still active, one second later it is completed.
+        #expect(!TimelineBuilder.isCompleted(dayPlan[0], at: at(16, 10)))
+        #expect(TimelineBuilder.isCompleted(dayPlan[0], at: at(16, 10).addingTimeInterval(1)))
+    }
+
+    @Test func nowAfterTheLastEvent() {
+        #expect(ids(items(now: at(16, 23, 59))) == ["a", "free(10:0-11:0)", "b", "c", "free(13:0-15:0)", "d", "now(23:59)"])
+    }
+
+    @Test func nowOnAnEmptyOrAllDayOnlyDay() {
+        #expect(ids(TimelineBuilder.items(for: at(16, 0), events: [], calendar: calendar, now: at(16, 13))) == ["now(13:0)"])
+        let stay = allDay("stay", .hotel, at(15, 0), at(17, 0))
+        #expect(ids(TimelineBuilder.items(for: at(16, 0), events: [stay], calendar: calendar, now: at(16, 13))) == ["now(13:0)"])
+        #expect(TimelineBuilder.allDayEvents(on: at(16, 0), from: [stay], calendar: calendar).map(\.id) == ["stay"])
+    }
+
+    @Test func nowAppearsOnItsOwnDayOnly() {
+        #expect(ids(items(now: at(17, 10))) == ids(items(now: nil)))
+        #expect(ids(items(now: at(15, 23, 59))) == ids(items(now: nil)))
+        #expect(ids(TimelineBuilder.items(for: at(17, 0), events: dayPlan, calendar: calendar, now: at(17, 10))) == ["now(10:0)"])
+    }
+
+    @Test func nowWithCrossMidnightEvents() {
+        let overnight = event("night", at(15, 22), at(16, 7))
+        let morning = event("morning", at(16, 9), at(16, 10))
+        let early = TimelineBuilder.items(for: at(16, 0), events: [overnight, morning], calendar: calendar, now: at(16, 6))
+        #expect(ids(early) == ["night", "now(6:0)", "free(7:0-9:0)", "morning"])
+        #expect(!TimelineBuilder.isCompleted(overnight, at: at(16, 6)))
+        let later = TimelineBuilder.items(for: at(16, 0), events: [overnight, morning], calendar: calendar, now: at(16, 8))
+        #expect(ids(later) == ["night", "free(7:0-8:0)", "now(8:0)", "free(8:0-9:0)", "morning"])
+        #expect(TimelineBuilder.isCompleted(overnight, at: at(16, 8)))
+        // The day before shows the overnight Event as ongoing from 22:00.
+        let eve = TimelineBuilder.items(for: at(15, 0), events: [overnight], calendar: calendar, now: at(15, 23))
+        #expect(ids(eve) == ["night", "now(23:0)"])
+    }
+
+    @Test func completedStylingState() {
+        let past = event("past", at(16, 9), at(16, 10))
+        let ongoing = event("ongoing", at(16, 9), at(16, 11))
+        let future = event("future", at(16, 12), at(16, 13))
+        let marker = event("marker", at(16, 10, 30), at(16, 10, 30))
+        let now = at(16, 10, 30)
+        #expect(TimelineBuilder.isCompleted(past, at: now))
+        #expect(!TimelineBuilder.isCompleted(ongoing, at: now))
+        #expect(!TimelineBuilder.isCompleted(future, at: now))
+        #expect(!TimelineBuilder.isCompleted(marker, at: now), "a zero-length Event ending now is not past yet")
+        // All-day stays and rental cars are never greyed by their midnight boundaries.
+        let stay = allDay("stay", .hotel, at(15, 0), at(16, 0))
+        let car = allDay("car", .car, at(14, 0), at(16, 0))
+        #expect(!TimelineBuilder.isCompleted(stay, at: at(16, 10)))
+        #expect(!TimelineBuilder.isCompleted(car, at: at(16, 10)))
+    }
+
+    @Test func nowIsNeverDuplicatedAndKeepsOrderWithIdenticalStarts() {
+        let a = event("a", at(16, 9), at(16, 10))
+        let b = event("b", at(16, 9), at(16, 11))
+        let items = TimelineBuilder.items(for: at(16, 0), events: [b, a], calendar: calendar, now: at(16, 9))
+        #expect(ids(items) == ["a", "b", "now(9:0)"])
+        #expect(items.filter { if case .now = $0 { return true } else { return false } }.count == 1)
+    }
+
+    @Test func insertSplitsOnlyStrictlyInsideAGap() {
+        var items: [TimelineItem] = [.freeTime(start: at(16, 10), end: at(16, 11))]
+        TimelineBuilder.insert(.now(at(16, 10)), at: at(16, 10), afterTies: true, into: &items)
+        #expect(ids(items) == ["now(10:0)", "free(10:0-11:0)"])
+        items = [.freeTime(start: at(16, 10), end: at(16, 11))]
+        TimelineBuilder.insert(.now(at(16, 11)), at: at(16, 11), afterTies: true, into: &items)
+        #expect(ids(items) == ["free(10:0-11:0)", "now(11:0)"])
+        items = []
+        TimelineBuilder.insert(.now(at(16, 11)), at: at(16, 11), afterTies: true, into: &items)
+        #expect(ids(items) == ["now(11:0)"])
     }
 
     @Test func hoursAndMinutes() {
