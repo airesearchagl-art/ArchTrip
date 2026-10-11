@@ -300,7 +300,8 @@ struct EventRow: View {
 }
 
 /// A hotel stay's derived check-in or check-out point on the timed timeline (G6-UX-05).
-/// An instant, not a busy period; it names the stay it comes from.
+/// An instant, not a busy period; it names the stay it comes from and shows the stay's
+/// location and a note preview, read from that stay each time (G6-UX-05-RF-Display-01).
 struct HotelMarkerRow: View {
     let marker: HotelMarker
     var isCompleted = false
@@ -327,13 +328,35 @@ struct HotelMarkerRow: View {
                 Text(title)
                     .font(.body.weight(.semibold))
                     .foregroundStyle(isCompleted ? .secondary : .primary)
-                Label {
-                    Text("Stay: \(marker.event.title)")
-                } icon: {
-                    Image(systemName: "link")
+                Group {
+                    Label {
+                        Text("Stay: \(marker.event.title)")
+                    } icon: {
+                        Image(systemName: "link")
+                    }
+                    // Blank fields have no line at all; a long address wraps.
+                    if let location = marker.locationName {
+                        Label {
+                            Text(verbatim: location)
+                                .lineLimit(3)
+                        } icon: {
+                            Image(systemName: "mappin.and.ellipse")
+                        }
+                        .accessibilityLabel(Text("Location: \(location)"))
+                    }
+                    if let note = marker.notePreview {
+                        Label {
+                            Text(verbatim: note)
+                                .lineLimit(HotelMarker.notePreviewMaxLines)
+                        } icon: {
+                            Image(systemName: "note.text")
+                        }
+                        .accessibilityLabel(Text("Note: \(note)"))
+                    }
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.leading)
             }
         }
         .padding(.vertical, 2)

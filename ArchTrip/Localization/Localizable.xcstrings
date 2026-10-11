@@ -1055,6 +1055,16 @@
         }
       }
     },
+    "Location: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所：%@"
+          }
+        }
+      }
+    },
     "Location set" : {
       "localizations" : {
         "ja" : {
@@ -1251,6 +1261,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "メモ"
+          }
+        }
+      }
+    },
+    "Note: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "メモ：%@"
           }
         }
       }
