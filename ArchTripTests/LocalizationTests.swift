@@ -73,6 +73,12 @@ struct LocalizationTests {
         #expect(String(format: try japanese("Check-in %@ · Check-out %@"), "10月15日", "10月17日") == "チェックイン 10月15日・チェックアウト 10月17日")
     }
 
+    /// G6-UX-06: the current-time row and the completed-Event accessibility value.
+    @Test func japaneseNowAndCompletedStrings() throws {
+        #expect(try japanese("Now") == "現在時刻")
+        #expect(try japanese("Completed") == "終了済み")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")
