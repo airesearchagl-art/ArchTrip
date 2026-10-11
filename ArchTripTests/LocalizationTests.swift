@@ -94,6 +94,12 @@ struct LocalizationTests {
         #expect(String(format: try japanese("Stay: %@"), "Hotel") == "宿泊：Hotel")
     }
 
+    /// G6-UX-05-RF-Display-01: VoiceOver names the marker row's location and note lines.
+    @Test func japaneseHotelMarkerDetailStrings() throws {
+        #expect(String(format: try japanese("Location: %@"), "Fixture address") == "場所：Fixture address")
+        #expect(String(format: try japanese("Note: %@"), "Fixture note") == "メモ：Fixture note")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")
