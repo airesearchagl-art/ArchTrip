@@ -455,6 +455,16 @@
         }
       }
     },
+    "Completed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終了済み"
+          }
+        }
+      }
+    },
     "Completed year" : {
       "localizations" : {
         "ja" : {
@@ -1211,6 +1221,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "何も変更されていません。"
+          }
+        }
+      }
+    },
+    "Now" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "現在時刻"
           }
         }
       }

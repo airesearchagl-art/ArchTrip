@@ -6,11 +6,15 @@ nonisolated enum TimelineItem: Identifiable, Equatable, Sendable {
     /// "Travel / Free Time": the time available for moving between Events,
     /// not a computed travel time.
     case freeTime(start: Date, end: Date)
+    /// The current time, on today's timeline only (G6-UX-06). Display-only: never
+    /// persisted and never part of the gap calculation.
+    case now(Date)
 
     var id: String {
         switch self {
         case .event(let event): "event-\(event.id)"
         case .freeTime(let start, _): "free-\(start.timeIntervalSinceReferenceDate)"
+        case .now(let date): "now-\(date.timeIntervalSinceReferenceDate)"
         }
     }
 }
@@ -43,12 +47,15 @@ nonisolated enum TimelineBuilder {
 
     /// Chronological timed Events for `day` with Travel / Free Time between adjacent
     /// Events when the gap is at least `threshold`. No gap before the first or after
-    /// the last Event; Events overlapping earlier ones never create gaps.
+    /// the last Event; Events overlapping earlier ones never create gaps. When `now`
+    /// falls on `day`, a `.now` row is placed at its chronological position (see
+    /// `insert`); it is shown even on a day without timed Events.
     static func items(
         for day: Date,
         events: [Event],
         calendar: Calendar,
-        threshold: TimeInterval = freeTimeThreshold
+        threshold: TimeInterval = freeTimeThreshold,
+        now: Date? = nil
     ) -> [TimelineItem] {
         var items: [TimelineItem] = []
         var latestEnd: Date?
@@ -59,7 +66,53 @@ nonisolated enum TimelineBuilder {
             items.append(.event(event))
             latestEnd = max(latestEnd ?? event.endDate, event.endDate)
         }
+        if let now, calendar.isDate(now, inSameDayAs: day) {
+            insert(.now(now), at: now, afterTies: true, into: &items)
+        }
         return items
+    }
+
+    /// Places a point-in-time item among the Events and gaps without touching the gap
+    /// calculation. The point follows every Event that started before `time`; inside a
+    /// gap it splits the gap's display into the part before and the part after it (same
+    /// total, no zero-length part); at a gap boundary it sits next to the gap. `afterTies`
+    /// says whether it follows an Event (or earlier point) at exactly the same instant:
+    /// the current time does, because that Event has begun.
+    static func insert(_ item: TimelineItem, at time: Date, afterTies: Bool, into items: inout [TimelineItem]) {
+        var index = 0
+        while index < items.count {
+            switch items[index] {
+            case .event(let event):
+                guard event.startDate < time || (afterTies && event.startDate == time) else {
+                    items.insert(item, at: index)
+                    return
+                }
+            case .now(let other):
+                guard other < time || (afterTies && other == time) else {
+                    items.insert(item, at: index)
+                    return
+                }
+            case .freeTime(let start, let end):
+                if time <= start {
+                    items.insert(item, at: index)
+                    return
+                }
+                if time < end {
+                    items[index] = .freeTime(start: start, end: time)
+                    items.insert(contentsOf: [item, .freeTime(start: time, end: end)], at: index + 1)
+                    return
+                }
+            }
+            index += 1
+        }
+        items.append(item)
+    }
+
+    /// Whether a timed Event is over at `now` (G6-UX-06 subdued styling). An Event that
+    /// spans `now`, or ends exactly at it, is still active; all-day Events are never
+    /// "completed" by their midnight boundaries.
+    static func isCompleted(_ event: Event, at now: Date) -> Bool {
+        event.isTimed && event.endDate < now
     }
 
     /// The Trip's days plus any day an Event starts or ends on, so no Event is unreachable.
