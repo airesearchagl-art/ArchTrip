@@ -4,7 +4,7 @@ import Testing
 
 /// G6-UX-05: check-in / check-out markers are derived from a hotel stay's optional clock
 /// times and are never stored.
-struct HotelMarkerTests {
+struct EventMarkerTests {
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
@@ -25,8 +25,8 @@ struct HotelMarkerTests {
         )
     }
 
-    private func markers(_ event: Event) -> [HotelMarker] {
-        HotelMarker.markers(for: event, calendar: calendar)
+    private func markers(_ event: Event) -> [EventMarker] {
+        EventMarker.markers(for: event, calendar: calendar)
     }
 
     @Test func stayWithoutClockTimesHasNoMarkers() {
@@ -49,8 +49,8 @@ struct HotelMarkerTests {
         #expect(result.first?.time == at(17, 9))
         #expect(result.first?.id == "marker-stay-checkOut")
         #expect(!AllDaySchedule.applies(event, on: at(17), calendar: calendar))
-        #expect(HotelMarker.markers(on: at(17), from: [event], calendar: calendar).map(\.kind) == [.checkOut])
-        #expect(HotelMarker.markers(on: at(16), from: [event], calendar: calendar).isEmpty)
+        #expect(EventMarker.markers(on: at(17), from: [event], calendar: calendar).map(\.kind) == [.checkOut])
+        #expect(EventMarker.markers(on: at(16), from: [event], calendar: calendar).isEmpty)
     }
 
     @Test func bothTimesForOneNight() {
@@ -64,7 +64,7 @@ struct HotelMarkerTests {
         let result = markers(event)
         #expect(result.map(\.time) == [at(15, 15), at(18, 10, 30)])
         #expect(AllDaySchedule.lastDay(of: event, calendar: calendar) == at(17))
-        #expect(HotelMarker.markers(on: at(17), from: [event], calendar: calendar).isEmpty)
+        #expect(EventMarker.markers(on: at(17), from: [event], calendar: calendar).isEmpty)
     }
 
     @Test func identityIsStableAcrossEdits() {
@@ -119,7 +119,7 @@ struct HotelMarkerTests {
             id: "dst", tripId: "trip", type: .hotel, title: "Hotel", startDate: dates.start, endDate: dates.end,
             createdAt: ny(1), isAllDay: true, checkInMinutes: 17 * 60, checkOutMinutes: 9 * 60
         )
-        let result = HotelMarker.markers(for: event, calendar: newYork)
+        let result = EventMarker.markers(for: event, calendar: newYork)
         #expect(result.map(\.time) == [ny(7, 17), ny(9, 9)])
         #expect(ny(9, 9).timeIntervalSince(ny(7, 17)) == 39 * 3_600, "one hour shorter than two full days")
     }
@@ -142,8 +142,8 @@ struct HotelMarkerTests {
         let first = stay("a", checkIn: 15, checkOut: 17, in: 15 * 60, out: 15 * 60)
         let second = stay("b", checkIn: 17, checkOut: 18, in: 15 * 60)
         let third = stay("c", checkIn: 17, checkOut: 18, in: 14 * 60)
-        let onTheSeventeenth = HotelMarker.markers(on: at(17), from: [second, first, third], calendar: calendar)
+        let onTheSeventeenth = EventMarker.markers(on: at(17), from: [second, first, third], calendar: calendar)
         #expect(onTheSeventeenth.map(\.id) == ["marker-c-checkIn", "marker-a-checkOut", "marker-b-checkIn"])
-        #expect(HotelMarker.markers(on: at(15), from: [second, first, third], calendar: calendar).map(\.id) == ["marker-a-checkIn"])
+        #expect(EventMarker.markers(on: at(15), from: [second, first, third], calendar: calendar).map(\.id) == ["marker-a-checkIn"])
     }
 }

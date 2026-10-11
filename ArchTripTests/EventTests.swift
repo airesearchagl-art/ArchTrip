@@ -275,6 +275,92 @@ struct EventTests {
         }
     }
 
+    // MARK: Rental car clock times (G6-UX-07)
+
+    private func makeRental(pickupMinutes: Int? = nil, returnMinutes: Int? = nil) -> Event {
+        Event(
+            id: "car-1", tripId: "trip-1", type: .car, title: "Rental", startDate: start,
+            endDate: start.addingTimeInterval(2 * 86_400), createdAt: start, isAllDay: true,
+            pickupMinutes: pickupMinutes, returnMinutes: returnMinutes
+        )
+    }
+
+    @Test func rentalClockTimesAreOmittedWhenUnset() throws {
+        let fields = try Firestore.Encoder().encode(makeRental())
+        #expect(fields["pickupMinutes"] == nil && fields["returnMinutes"] == nil)
+        #expect(fields.count == 11, "a G6 rental car's document is unchanged by UX-07")
+        let timed = try Firestore.Encoder().encode(makeEvent())
+        #expect(timed["pickupMinutes"] == nil && timed["returnMinutes"] == nil && timed.count == 10)
+        let stay = try Firestore.Encoder().encode(makeStay(checkInMinutes: 17 * 60, checkOutMinutes: 9 * 60))
+        #expect(stay["pickupMinutes"] == nil && stay["returnMinutes"] == nil && stay.count == 13, "hotel documents are unchanged")
+    }
+
+    @Test func rentalClockTimesRoundTrip() throws {
+        let car = makeRental(pickupMinutes: 10 * 60, returnMinutes: 17 * 60)
+        #expect(car.isValid)
+        let fields = try Firestore.Encoder().encode(car)
+        #expect(fields["pickupMinutes"] as? Int == 600)
+        #expect(fields["returnMinutes"] as? Int == 1_020)
+        #expect(fields.count == 13)
+        #expect(try Firestore.Decoder().decode(Event.self, from: fields) == car)
+        // Each is independently optional.
+        #expect(makeRental(pickupMinutes: 600).isValid && makeRental(returnMinutes: 1_020).isValid)
+    }
+
+    @Test func rentalClockTimesRangeMirrorsTheRules() {
+        #expect(makeRental(pickupMinutes: 0, returnMinutes: 1_439).isValid)
+        #expect(!makeRental(pickupMinutes: -1).isValid)
+        #expect(!makeRental(returnMinutes: 1_440).isValid)
+        #expect(!makeRental(pickupMinutes: 1_440).isValid)
+        #expect(!makeRental(returnMinutes: -1).isValid)
+    }
+
+    @Test func rentalClockTimesBelongToAllDayCarsOnly() {
+        var timed = makeRental(pickupMinutes: 600)
+        timed.isAllDay = nil
+        #expect(!timed.isValid)
+        var flaggedFalse = makeRental(returnMinutes: 600)
+        flaggedFalse.isAllDay = false
+        #expect(!flaggedFalse.isValid)
+        var hotel = makeRental(pickupMinutes: 600)
+        hotel.type = .hotel
+        #expect(!hotel.isValid)
+        var other = makeRental(returnMinutes: 600)
+        other.type = .other
+        #expect(!other.isValid)
+        var mixed = makeRental(pickupMinutes: 600)
+        mixed.checkOutMinutes = 540
+        #expect(!mixed.isValid, "hotel times never belong on a car")
+        var stayWithRentalTimes = makeStay(checkInMinutes: 17 * 60)
+        stayWithRentalTimes.returnMinutes = 600
+        #expect(!stayWithRentalTimes.isValid, "rental times never belong on a stay")
+        #expect(makeRental().isValid, "a rental car without clock times is unaffected")
+    }
+
+    @Test func g6RentalCarWithoutClockTimesStillDecodes() throws {
+        var fields = try Firestore.Encoder().encode(makeRental())
+        fields.removeValue(forKey: "pickupMinutes")
+        fields.removeValue(forKey: "returnMinutes")
+        let decoded = try Firestore.Decoder().decode(Event.self, from: fields)
+        #expect(decoded.pickupMinutes == nil && decoded.returnMinutes == nil)
+        #expect(decoded == makeRental())
+        #expect(decoded.isValid)
+        // A timed car written before G6 has neither flag nor times.
+        var legacy = makeEvent()
+        legacy.type = .car
+        let legacyFields = try Firestore.Encoder().encode(legacy)
+        #expect(legacyFields.count == 10)
+        #expect(try Firestore.Decoder().decode(Event.self, from: legacyFields) == legacy)
+    }
+
+    @Test func nonIntRentalClockTimeFailsToDecode() throws {
+        var fields = try Firestore.Encoder().encode(makeRental())
+        fields["returnMinutes"] = "17:00"
+        #expect(throws: (any Error).self) {
+            try Firestore.Decoder().decode(Event.self, from: fields)
+        }
+    }
+
     @Test func eventPaths() {
         #expect(TripPath.events(uid: "u1", tripID: "t1") == "users/u1/trips/t1/events")
         #expect(TripPath.event(uid: "u1", tripID: "t1", eventID: "e1") == "users/u1/trips/t1/events/e1")

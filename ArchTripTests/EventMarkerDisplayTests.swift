@@ -5,7 +5,7 @@ import Testing
 /// G6-UX-05-RF-Display-01: a derived marker row shows its source stay's location and a
 /// note preview, read from the canonical hotel Event; nothing is copied or stored.
 /// Fixture text only: no real hotel, address or reservation details.
-struct HotelMarkerDisplayTests {
+struct EventMarkerDisplayTests {
     private let calendar: Calendar = {
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "Asia/Tokyo")!
@@ -25,8 +25,8 @@ struct HotelMarkerDisplayTests {
         )
     }
 
-    private func markers(_ event: Event) -> [HotelMarker] {
-        HotelMarker.markers(for: event, calendar: calendar)
+    private func markers(_ event: Event) -> [EventMarker] {
+        EventMarker.markers(for: event, calendar: calendar)
     }
 
     @Test func bothMarkersShowTheStaysLocationAndNotePreview() {
@@ -60,30 +60,30 @@ struct HotelMarkerDisplayTests {
     }
 
     @Test func notePreviewKeepsTheFirstTwoNonBlankLines() {
-        #expect(HotelMarker.notePreview(of: "一行目") == "一行目")
-        #expect(HotelMarker.notePreview(of: "一行目\n二行目") == "一行目\n二行目")
-        #expect(HotelMarker.notePreview(of: "一行目\n\n二行目\n三行目") == "一行目\n二行目…")
-        #expect(HotelMarker.notePreview(of: "  a  \r\n  b  \u{2028}c") == "a\nb…")
-        #expect(HotelMarker.notePreview(of: "\n\n") == nil)
+        #expect(EventMarker.notePreview(of: "一行目") == "一行目")
+        #expect(EventMarker.notePreview(of: "一行目\n二行目") == "一行目\n二行目")
+        #expect(EventMarker.notePreview(of: "一行目\n\n二行目\n三行目") == "一行目\n二行目…")
+        #expect(EventMarker.notePreview(of: "  a  \r\n  b  \u{2028}c") == "a\nb…")
+        #expect(EventMarker.notePreview(of: "\n\n") == nil)
     }
 
     /// The cap counts characters, not bytes, and never splits a Japanese character or an
     /// emoji cluster.
     @Test func notePreviewCapsLongTextOnCharacterBoundaries() throws {
-        let max = HotelMarker.notePreviewMaxCharacters
+        let max = EventMarker.notePreviewMaxCharacters
         let exact = String(repeating: "あ", count: max)
-        #expect(HotelMarker.notePreview(of: exact) == exact)
+        #expect(EventMarker.notePreview(of: exact) == exact)
         let over = exact + "い"
-        #expect(HotelMarker.notePreview(of: over) == exact + "…")
+        #expect(EventMarker.notePreview(of: over) == exact + "…")
         let family = "👨‍👩‍👧"
         let clustered = String(repeating: "か", count: max - 1) + family + "x"
-        let preview = try #require(HotelMarker.notePreview(of: clustered))
+        let preview = try #require(EventMarker.notePreview(of: clustered))
         #expect(preview.hasSuffix(family + "…"))
         #expect(preview.count == max + 1)
         // A cut right after a space does not leave the space before the ellipsis.
         let spaced = String(repeating: "b", count: max - 1) + " c d"
-        #expect(HotelMarker.notePreview(of: spaced) == String(repeating: "b", count: max - 1) + "…")
-        #expect(HotelMarker.notePreview(of: String(repeating: "x", count: Event.noteMaxLength))?.count == max + 1)
+        #expect(EventMarker.notePreview(of: spaced) == String(repeating: "b", count: max - 1) + "…")
+        #expect(EventMarker.notePreview(of: String(repeating: "x", count: Event.noteMaxLength))?.count == max + 1)
     }
 
     /// Editing the stay changes what both markers show; clearing a field removes its line.
@@ -105,7 +105,7 @@ struct HotelMarkerDisplayTests {
 
     /// Markers stay derived: the type is not encodable, so nothing could write one.
     @Test func markersAreNeverEncodedOrStored() {
-        let type: Any.Type = HotelMarker.self
+        let type: Any.Type = EventMarker.self
         #expect(!(type is any Encodable.Type))
         #expect(!(type is any Decodable.Type))
         #expect(!(type is any FirestoreDocument.Type))

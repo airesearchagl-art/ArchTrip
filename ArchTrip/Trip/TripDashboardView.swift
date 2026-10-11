@@ -147,11 +147,12 @@ struct TripDashboardView: View {
                     case .now(let date):
                         NowRow(date: date)
                     case .marker(let marker):
-                        // Derived from the stay: opens the stay's editor and has no delete of its own.
+                        // Derived from its all-day Event: opens that Event's editor and has no
+                        // delete of its own.
                         Button {
                             editorTarget = .edit(marker.event)
                         } label: {
-                            HotelMarkerRow(marker: marker, isCompleted: marker.time < now)
+                            EventMarkerRow(marker: marker, isCompleted: marker.time < now)
                         }
                         .tint(.primary)
                     }
@@ -299,11 +300,12 @@ struct EventRow: View {
     }
 }
 
-/// A hotel stay's derived check-in or check-out point on the timed timeline (G6-UX-05).
-/// An instant, not a busy period; it names the stay it comes from and shows the stay's
-/// location and a note preview, read from that stay each time (G6-UX-05-RF-Display-01).
-struct HotelMarkerRow: View {
-    let marker: HotelMarker
+/// An all-day Event's derived clock-time point on the timed timeline: a stay's check-in /
+/// check-out (G6-UX-05) or a rental car's pickup / return (G6-UX-07). An instant, not a
+/// busy period; it names the Event it comes from and shows that Event's location and a
+/// note preview, read from it each time (G6-UX-05-RF-Display-01).
+struct EventMarkerRow: View {
+    let marker: EventMarker
     var isCompleted = false
 
     @Environment(\.locale) private var locale
@@ -312,15 +314,25 @@ struct HotelMarkerRow: View {
         switch marker.kind {
         case .checkIn: "Hotel check-in"
         case .checkOut: "Hotel check-out"
+        case .pickup: "Rental car pickup"
+        case .return: "Rental car return"
+        }
+    }
+
+    /// Names the source Event, by what it is.
+    private var source: Text {
+        switch marker.kind {
+        case .checkIn, .checkOut: Text("Stay: \(marker.event.title)")
+        case .pickup, .return: Text("Rental car: \(marker.event.title)")
         }
     }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
-            Image(systemName: "bed.double.fill")
+            Image(systemName: marker.event.type.systemImage)
                 .foregroundStyle(.white)
                 .frame(width: 32, height: 32)
-                .background(EventType.hotel.tint, in: .circle)
+                .background(marker.event.type.tint, in: .circle)
             VStack(alignment: .leading, spacing: 2) {
                 Text(verbatim: DateFormatting.time(marker.time, locale: locale))
                     .font(.subheadline.monospacedDigit())
@@ -330,7 +342,7 @@ struct HotelMarkerRow: View {
                     .foregroundStyle(isCompleted ? .secondary : .primary)
                 Group {
                     Label {
-                        Text("Stay: \(marker.event.title)")
+                        source
                     } icon: {
                         Image(systemName: "link")
                     }
@@ -347,7 +359,7 @@ struct HotelMarkerRow: View {
                     if let note = marker.notePreview {
                         Label {
                             Text(verbatim: note)
-                                .lineLimit(HotelMarker.notePreviewMaxLines)
+                                .lineLimit(EventMarker.notePreviewMaxLines)
                         } icon: {
                             Image(systemName: "note.text")
                         }

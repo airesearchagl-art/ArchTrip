@@ -95,9 +95,26 @@ struct LocalizationTests {
     }
 
     /// G6-UX-05-RF-Display-01: VoiceOver names the marker row's location and note lines.
-    @Test func japaneseHotelMarkerDetailStrings() throws {
+    @Test func japaneseEventMarkerDetailStrings() throws {
         #expect(String(format: try japanese("Location: %@"), "Fixture address") == "場所：Fixture address")
         #expect(String(format: try japanese("Note: %@"), "Fixture note") == "メモ：Fixture note")
+    }
+
+    /// G6-UX-07: rental car clock-time controls and the derived marker rows; hotel strings unchanged.
+    @Test func japaneseRentalCarClockTimeStrings() throws {
+        let expected = [
+            "Set pickup time": "貸出時刻を指定する", "Pickup time": "貸出時刻",
+            "Set return time": "返却時刻を指定する", "Return time": "返却時刻",
+            "Rental times": "貸出・返却の時刻", "Rental car pickup": "レンタカー貸出", "Rental car return": "レンタカー返却",
+            "Shown on the timeline as pickup and return markers on their own days. The rental car itself stays under All-day & stays.":
+                "時刻付きの予定一覧に、それぞれの日の貸出・返却の目印として表示します。レンタカー自体は「終日・滞在情報」に残ります。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("Rental car: %@"), "Car") == "レンタカー：Car")
+        #expect(try japanese("Stay times") == "宿泊の時刻")
+        #expect(try japanese("Pickup day") == "利用開始日" && (try japanese("Return day")) == "返却日")
     }
 
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
