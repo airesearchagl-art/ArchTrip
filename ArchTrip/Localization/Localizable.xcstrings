@@ -425,12 +425,32 @@
         }
       }
     },
+    "Check-in time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックイン時刻"
+          }
+        }
+      }
+    },
     "Check-out" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "チェックアウト"
+          }
+        }
+      }
+    },
+    "Check-out time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックアウト時刻"
           }
         }
       }
@@ -975,6 +995,26 @@
         }
       }
     },
+    "Hotel check-in" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホテルチェックイン"
+          }
+        }
+      }
+    },
+    "Hotel check-out" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ホテルチェックアウト"
+          }
+        }
+      }
+    },
     "Language" : {
       "localizations" : {
         "ja" : {
@@ -1405,6 +1445,26 @@
         }
       }
     },
+    "Set check-in time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックイン時刻を指定する"
+          }
+        }
+      }
+    },
+    "Set check-out time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックアウト時刻を指定する"
+          }
+        }
+      }
+    },
     "Set Up Account" : {
       "localizations" : {
         "ja" : {
@@ -1485,6 +1545,16 @@
         }
       }
     },
+    "Shown on the timeline as check-in and check-out markers on their own days. The stay itself stays under All-day & stays." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時刻付きの予定一覧に、それぞれの日のチェックイン・チェックアウトの目印として表示します。宿泊自体は「終日・滞在情報」に残ります。"
+          }
+        }
+      }
+    },
     "Sign In" : {
       "localizations" : {
         "ja" : {
@@ -1561,6 +1631,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "宿泊"
+          }
+        }
+      }
+    },
+    "Stay times" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宿泊の時刻"
+          }
+        }
+      }
+    },
+    "Stay: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宿泊：%@"
           }
         }
       }

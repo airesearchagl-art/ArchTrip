@@ -275,23 +275,25 @@ struct FirebaseDocumentUpdateIntegrationTests {
             let path = TripPath.event(uid: uid, tripID: trip.id, eventID: linked.id)
 
             // Type change drops the link: the stored field must disappear, not become null.
-            var read = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+            let stored = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+            var read = stored
             read.type = .business
             read.buildingId = nil
             read.title = "Meeting instead"
             read.updatedAt = Date()
-            try await acknowledged { try store.updateEvent(read, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateEvent(read, replacing: stored, uid: uid, serverAcknowledged: $0) }
             var raw = try #require(try await db.document(path).getDocument(source: .server).data())
             #expect(raw["buildingId"] == nil)
             #expect(raw["type"] as? String == "business")
             #expect(raw["title"] as? String == "Meeting instead")
 
             // Linking again writes the field back.
-            read = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+            let unlinked = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+            read = unlinked
             read.type = .architecture
             read.buildingId = building.id
             read.updatedAt = Date()
-            try await acknowledged { try store.updateEvent(read, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateEvent(read, replacing: unlinked, uid: uid, serverAcknowledged: $0) }
             raw = try #require(try await db.document(path).getDocument(source: .server).data())
             #expect(raw["buildingId"] as? String == building.id)
             print("RF01-EVIDENCE event update: link removed then restored, createdAt untouched")
@@ -309,24 +311,26 @@ struct FirebaseDocumentUpdateIntegrationTests {
         do {
             try await acknowledged { try store.createBuilding(building, uid: uid, serverAcknowledged: $0) }
 
-            var read = try #require(try await store.fetchBuildings(uid: uid, source: .server).items.first { $0.id == building.id })
+            let stored = try #require(try await store.fetchBuildings(uid: uid, source: .server).items.first { $0.id == building.id })
+            var read = stored
             read.completedYear = nil
             read.latitude = nil
             read.longitude = nil
             read.visited = true
             read.updatedAt = Date()
-            try await acknowledged { try store.updateBuilding(read, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateBuilding(read, replacing: stored, uid: uid, serverAcknowledged: $0) }
             var raw = try #require(try await db.document(path).getDocument(source: .server).data())
             for key in Building.optionalFields {
                 #expect(raw[key] == nil, "\(key) should be removed")
             }
             #expect(raw["visited"] as? Bool == true)
 
-            read = try #require(try await store.fetchBuildings(uid: uid, source: .server).items.first { $0.id == building.id })
+            let stripped = try #require(try await store.fetchBuildings(uid: uid, source: .server).items.first { $0.id == building.id })
+            read = stripped
             read.latitude = 43.1
             read.longitude = 141.4
             read.updatedAt = Date()
-            try await acknowledged { try store.updateBuilding(read, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateBuilding(read, replacing: stripped, uid: uid, serverAcknowledged: $0) }
             raw = try #require(try await db.document(path).getDocument(source: .server).data())
             #expect(raw["latitude"] as? Double == 43.1)
             #expect(raw["longitude"] as? Double == 141.4)

@@ -129,7 +129,7 @@ struct FirebaseAllDayIntegrationTests {
             var edited = try #require(read.items.first)
             edited.title = "G6 live stay (edited)"
             edited.updatedAt = Date()
-            try await acknowledged { try store.updateEvent(edited, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateEvent(edited, replacing: stay, uid: uid, serverAcknowledged: $0) }
             let afterEdit = try await rawEvent(uid: uid, tripID: trip.id, eventID: stay.id)
             #expect(afterEdit["isAllDay"] as? Bool == true)
             #expect(afterEdit["title"] as? String == edited.title)
@@ -139,7 +139,7 @@ struct FirebaseAllDayIntegrationTests {
             timed.isAllDay = nil
             timed.endDate = timed.startDate.addingTimeInterval(3_600)
             timed.updatedAt = Date()
-            try await acknowledged { try store.updateEvent(timed, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateEvent(timed, replacing: edited, uid: uid, serverAcknowledged: $0) }
             let afterConversion = try await rawEvent(uid: uid, tripID: trip.id, eventID: stay.id)
             #expect(afterConversion["isAllDay"] == nil)
             #expect(afterConversion["createdAt"] is Timestamp)
@@ -222,11 +222,59 @@ struct FirebaseAllDayIntegrationTests {
         try? await user.delete()
         _ = await app.delete()
     }
+
+    /// Offline: converting a stored all-day stay back to timed must keep the cached Event
+    /// readable, with the flag gone and the write pending, until it is acknowledged.
+    /// Before the fix the update also deleted the absent `buildingId`, and Firestore's local
+    /// view then skipped the `isAllDay` delete and dropped `updatedAt`, so the Event failed
+    /// to decode until reconnect. Throwaway secondary app and disposable user.
+    @Test func offlineConversionToTimedKeepsTheCachedEventReadable() async throws {
+        let name = "g6OfflineEdit\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        FirebaseApp.configure(name: name, options: try #require(FirebaseApp.app()).options)
+        let app = try #require(FirebaseApp.app(name: name))
+        let user = try await Auth.auth(app: app).signInAnonymously().user
+        let uid = user.uid
+        let db = Firestore.firestore(app: app)
+        let store = TripStore(db: db)
+        let trip = makeTrip()
+        try await acknowledged { try store.createTrip(trip, uid: uid, serverAcknowledged: $0) }
+        let stay = makeStay(tripID: trip.id)
+        try await acknowledged { try store.createEvent(stay, uid: uid, serverAcknowledged: $0) }
+        let stored = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+
+        try await db.disableNetwork()
+        var timed = stored
+        timed.isAllDay = nil
+        timed.endDate = timed.startDate.addingTimeInterval(3_600)
+        timed.updatedAt = now().addingTimeInterval(1)
+        let pending = PendingWrite()
+        try store.updateEvent(timed, replacing: stored, uid: uid, serverAcknowledged: pending.handler)
+        let cached = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .cache)
+        #expect(cached.isFromCache && cached.hasPendingWrites)
+        #expect(cached.failures.isEmpty, "\(cached.failures)")
+        #expect(cached.items == [timed])
+        #expect(cached.items.first?.isAllDay == nil && cached.items.first?.isTimed == true)
+
+        try await db.enableNetwork()
+        try await pending.wait()
+        let server = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server)
+        #expect(!server.isFromCache && server.failures.isEmpty && server.items == [timed])
+        let raw = try await db.document(TripPath.event(uid: uid, tripID: trip.id, eventID: stay.id)).getDocument(source: .server).data() ?? [:]
+        #expect(raw["isAllDay"] == nil && raw["createdAt"] is Timestamp)
+        print("G6-EVIDENCE offline conversion to timed: cached Event readable with the flag gone (pending), acknowledged after reconnect, server matches")
+
+        try? await db.document(TripPath.event(uid: uid, tripID: trip.id, eventID: stay.id)).delete()
+        try? await db.document(TripPath.document(uid: uid, tripID: trip.id)).delete()
+        try? await db.terminate()
+        try? await user.delete()
+        _ = await app.delete()
+    }
 }
 
 /// Captures one Firestore completion so a write can be queued offline and awaited later.
+/// Shared with the other offline live tests.
 @MainActor
-private final class PendingWrite {
+final class PendingWrite {
     private var continuation: CheckedContinuation<Void, Error>?
     private var outcome: Result<Void, Error>?
 

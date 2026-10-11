@@ -209,6 +209,72 @@ struct EventTests {
         #expect(try Firestore.Decoder().decode(Event.self, from: fields) == event)
     }
 
+    // MARK: Hotel clock times (G6-UX-05)
+
+    private func makeStay(checkInMinutes: Int? = nil, checkOutMinutes: Int? = nil) -> Event {
+        Event(
+            id: "stay-1", tripId: "trip-1", type: .hotel, title: "Hotel", startDate: start,
+            endDate: start.addingTimeInterval(86_400), createdAt: start, isAllDay: true,
+            checkInMinutes: checkInMinutes, checkOutMinutes: checkOutMinutes
+        )
+    }
+
+    @Test func clockTimesAreOmittedWhenUnset() throws {
+        let fields = try Firestore.Encoder().encode(makeStay())
+        #expect(fields["checkInMinutes"] == nil && fields["checkOutMinutes"] == nil)
+        #expect(fields.count == 11, "a G6 stay's document is unchanged by UX-05")
+        let timed = try Firestore.Encoder().encode(makeEvent())
+        #expect(timed["checkInMinutes"] == nil && timed["checkOutMinutes"] == nil && timed.count == 10)
+    }
+
+    @Test func clockTimesRoundTrip() throws {
+        let stay = makeStay(checkInMinutes: 17 * 60, checkOutMinutes: 9 * 60)
+        #expect(stay.isValid)
+        let fields = try Firestore.Encoder().encode(stay)
+        #expect(fields["checkInMinutes"] as? Int == 1_020)
+        #expect(fields["checkOutMinutes"] as? Int == 540)
+        #expect(fields.count == 13)
+        #expect(try Firestore.Decoder().decode(Event.self, from: fields) == stay)
+    }
+
+    @Test func clockTimesRangeMirrorsTheRules() {
+        #expect(Event.clockMinutesRange == 0..<1_440)
+        #expect(makeStay(checkInMinutes: 0, checkOutMinutes: 1_439).isValid)
+        #expect(!makeStay(checkInMinutes: -1).isValid)
+        #expect(!makeStay(checkOutMinutes: 1_440).isValid)
+    }
+
+    @Test func clockTimesBelongToAllDayHotelStaysOnly() {
+        var timed = makeStay(checkInMinutes: 600)
+        timed.isAllDay = nil
+        #expect(!timed.isValid)
+        var flaggedFalse = makeStay(checkInMinutes: 600)
+        flaggedFalse.isAllDay = false
+        #expect(!flaggedFalse.isValid)
+        var car = makeStay(checkOutMinutes: 600)
+        car.type = .car
+        #expect(!car.isValid)
+        #expect(makeStay().isValid, "a stay without clock times is unaffected")
+    }
+
+    @Test func g6StayWithoutClockTimesStillDecodes() throws {
+        var fields = try Firestore.Encoder().encode(makeStay())
+        fields.removeValue(forKey: "checkInMinutes")
+        fields.removeValue(forKey: "checkOutMinutes")
+        let decoded = try Firestore.Decoder().decode(Event.self, from: fields)
+        #expect(decoded.checkInMinutes == nil && decoded.checkOutMinutes == nil)
+        #expect(decoded == makeStay())
+        #expect(decoded.isValid)
+    }
+
+    @Test func nonIntClockTimeFailsToDecode() throws {
+        var fields = try Firestore.Encoder().encode(makeStay())
+        fields["checkInMinutes"] = "17:00"
+        #expect(throws: (any Error).self) {
+            try Firestore.Decoder().decode(Event.self, from: fields)
+        }
+    }
+
     @Test func eventPaths() {
         #expect(TripPath.events(uid: "u1", tripID: "t1") == "users/u1/trips/t1/events")
         #expect(TripPath.event(uid: "u1", tripID: "t1", eventID: "e1") == "users/u1/trips/t1/events/e1")

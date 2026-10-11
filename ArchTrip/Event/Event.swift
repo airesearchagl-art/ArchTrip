@@ -41,6 +41,14 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
     /// document when nil, so Events written before G6 decode unchanged and stay timed;
     /// nil and false mean the same thing. Existing Events are never converted.
     var isAllDay: Bool?
+    /// G6-UX-05: optional clock times of an all-day hotel stay, as minutes after local
+    /// midnight on the check-in day and on the check-out day (`clockMinutesRange`). The
+    /// timeline derives check-in / check-out markers from them (`HotelMarker`); nothing
+    /// else is stored, and both are omitted from the document when nil.
+    var checkInMinutes: Int?
+    var checkOutMinutes: Int?
+
+    static let clockMinutesRange = 0..<(24 * 60)
 
     init(
         id: String = UUID().uuidString,
@@ -54,7 +62,9 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         createdAt: Date = Date(),
         updatedAt: Date? = nil,
         buildingId: String? = nil,
-        isAllDay: Bool? = nil
+        isAllDay: Bool? = nil,
+        checkInMinutes: Int? = nil,
+        checkOutMinutes: Int? = nil
     ) {
         self.id = id
         self.tripId = tripId
@@ -68,6 +78,8 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         self.updatedAt = updatedAt ?? createdAt
         self.buildingId = buildingId
         self.isAllDay = isAllDay
+        self.checkInMinutes = checkInMinutes
+        self.checkOutMinutes = checkOutMinutes
     }
 
     /// Timed Events form the timeline and its Travel / Free Time gaps.
@@ -82,15 +94,23 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
             && endDate >= startDate
             && updatedAt >= createdAt
             && hasValidBuildingLink
+            && hasValidClockTimes
     }
 
     private var hasValidBuildingLink: Bool {
         guard let buildingId else { return true }
         return type == .architecture && !buildingId.isEmpty && buildingId.count <= Self.buildingIdMaxLength
     }
+
+    /// Clock times belong to all-day hotel stays only and lie within one day.
+    private var hasValidClockTimes: Bool {
+        let times = [checkInMinutes, checkOutMinutes].compactMap { $0 }
+        if times.isEmpty { return true }
+        return type == .hotel && isAllDay == true && times.allSatisfy(Self.clockMinutesRange.contains)
+    }
 }
 
 extension Event: FirestoreDocument {
-    /// Both are removed from the stored document by an update that leaves them nil.
-    static let optionalFields = ["buildingId", "isAllDay"]
+    /// Each is removed from the stored document by an update that leaves it nil.
+    static let optionalFields = ["buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes"]
 }

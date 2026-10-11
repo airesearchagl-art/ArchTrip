@@ -9,12 +9,16 @@ nonisolated enum TimelineItem: Identifiable, Equatable, Sendable {
     /// The current time, on today's timeline only (G6-UX-06). Display-only: never
     /// persisted and never part of the gap calculation.
     case now(Date)
+    /// A hotel stay's derived check-in or check-out point (G6-UX-05). Display-only: it
+    /// opens the stay's editor and disappears with the stay or its clock time.
+    case marker(HotelMarker)
 
     var id: String {
         switch self {
         case .event(let event): "event-\(event.id)"
         case .freeTime(let start, _): "free-\(start.timeIntervalSinceReferenceDate)"
         case .now(let date): "now-\(date.timeIntervalSinceReferenceDate)"
+        case .marker(let marker): marker.id
         }
     }
 }
@@ -66,6 +70,11 @@ nonisolated enum TimelineBuilder {
             items.append(.event(event))
             latestEnd = max(latestEnd ?? event.endDate, event.endDate)
         }
+        // Hotel check-in / check-out markers (G6-UX-05) precede an Event starting at the
+        // same instant; the current time follows everything that has begun.
+        for marker in HotelMarker.markers(on: day, from: events, calendar: calendar) {
+            insert(.marker(marker), at: marker.time, afterTies: false, into: &items)
+        }
         if let now, calendar.isDate(now, inSameDayAs: day) {
             insert(.now(now), at: now, afterTies: true, into: &items)
         }
@@ -76,8 +85,9 @@ nonisolated enum TimelineBuilder {
     /// calculation. The point follows every Event that started before `time`; inside a
     /// gap it splits the gap's display into the part before and the part after it (same
     /// total, no zero-length part); at a gap boundary it sits next to the gap. `afterTies`
-    /// says whether it follows an Event (or earlier point) at exactly the same instant:
-    /// the current time does, because that Event has begun.
+    /// says whether it follows an Event at exactly the same instant: the current time
+    /// does, because that Event has begun; a hotel marker does not. Points already placed
+    /// at the same instant are always kept ahead, so insertion order is display order.
     static func insert(_ item: TimelineItem, at time: Date, afterTies: Bool, into items: inout [TimelineItem]) {
         var index = 0
         while index < items.count {
@@ -87,8 +97,13 @@ nonisolated enum TimelineBuilder {
                     items.insert(item, at: index)
                     return
                 }
+            case .marker(let marker):
+                guard marker.time <= time else {
+                    items.insert(item, at: index)
+                    return
+                }
             case .now(let other):
-                guard other < time || (afterTies && other == time) else {
+                guard other <= time else {
                     items.insert(item, at: index)
                     return
                 }
@@ -132,6 +147,10 @@ nonisolated enum TimelineBuilder {
                 days.insert(day)
                 guard let next = calendar.date(byAdding: .day, value: 1, to: day) else { break }
                 day = next
+            }
+            // A check-out marker falls on the day after the last night: keep it reachable.
+            for marker in HotelMarker.markers(for: event, calendar: calendar) where days.count < limit {
+                days.insert(calendar.startOfDay(for: marker.time))
             }
         }
         return days.sorted()

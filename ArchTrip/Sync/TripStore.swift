@@ -37,7 +37,8 @@ final class TripStore {
     /// Updates every field except `createdAt` (see `DocumentUpdate`). Fails visibly
     /// when the document does not exist.
     func updateTrip(_ trip: Trip, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
-        let fields = try DocumentUpdate.fields(for: trip)
+        // A Trip has no optional fields, so nothing is ever deleted and no previous copy is needed.
+        let fields = try DocumentUpdate.fields(for: trip, replacing: trip)
         trips(uid: uid).document(trip.id).updateData(fields, completion: serverAcknowledged)
     }
 
@@ -58,9 +59,11 @@ final class TripStore {
             .setData(from: event, completion: serverAcknowledged)
     }
 
-    /// Updates every field except `createdAt`; a nil `buildingId` removes the link.
-    func updateEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
-        let fields = try DocumentUpdate.fields(for: event)
+    /// Updates every field except `createdAt`. `previous` is the stored Event being edited:
+    /// an optional field (Building link, all-day flag, clock times) is removed only when it
+    /// was stored and is nil now (see `DocumentUpdate`).
+    func updateEvent(_ event: Event, replacing previous: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try DocumentUpdate.fields(for: event, replacing: previous)
         events(uid: uid, tripID: event.tripId).document(event.id).updateData(fields, completion: serverAcknowledged)
     }
 
@@ -90,9 +93,10 @@ final class TripStore {
         try buildings(uid: uid).document(building.id).setData(from: building, completion: serverAcknowledged)
     }
 
-    /// Updates every field except `createdAt`; nil optional fields are removed.
-    func updateBuilding(_ building: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
-        let fields = try DocumentUpdate.fields(for: building)
+    /// Updates every field except `createdAt`; an optional field that was stored and is nil
+    /// now is removed (see `DocumentUpdate`). `previous` is the stored Building being edited.
+    func updateBuilding(_ building: Building, replacing previous: Building, uid: String, serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try DocumentUpdate.fields(for: building, replacing: previous)
         buildings(uid: uid).document(building.id).updateData(fields, completion: serverAcknowledged)
     }
 
