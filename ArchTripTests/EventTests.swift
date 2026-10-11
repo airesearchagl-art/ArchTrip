@@ -81,6 +81,70 @@ struct EventTests {
             #expect(fields[key] is Timestamp, "\(key) should be a Firestore Timestamp")
         }
         #expect(fields["latitude"] == nil && fields["longitude"] == nil)
+        #expect(fields["isAllDay"] == nil, "a timed Event's document is unchanged by G6")
+    }
+
+    // MARK: All-day (G6)
+
+    @Test func timedEventOmitsTheAllDayFlag() throws {
+        let event = makeEvent()
+        #expect(event.isAllDay == nil)
+        #expect(event.isTimed)
+        let fields = try Firestore.Encoder().encode(event)
+        #expect(fields["isAllDay"] == nil)
+        #expect(fields.count == 10)
+    }
+
+    @Test func allDayFlagIsStoredWhenSet() throws {
+        var stay = makeEvent()
+        stay.type = .hotel
+        stay.isAllDay = true
+        #expect(!stay.isTimed)
+        #expect(stay.isValid)
+        let fields = try Firestore.Encoder().encode(stay)
+        #expect(fields["isAllDay"] as? Bool == true)
+        #expect(fields.count == 11)
+        #expect(try Firestore.Decoder().decode(Event.self, from: fields) == stay)
+    }
+
+    /// Documents written before G6 have no flag and stay timed; nothing converts them.
+    @Test func legacyEventWithoutTheFlagIsTimed() throws {
+        var fields = try Firestore.Encoder().encode(makeEvent())
+        fields.removeValue(forKey: "isAllDay")
+        let decoded = try Firestore.Decoder().decode(Event.self, from: fields)
+        #expect(decoded.isAllDay == nil)
+        #expect(decoded.isTimed)
+        #expect(decoded == makeEvent())
+    }
+
+    @Test func storedFalseMeansTimed() throws {
+        var fields = try Firestore.Encoder().encode(makeEvent())
+        fields["isAllDay"] = false
+        let decoded = try Firestore.Decoder().decode(Event.self, from: fields)
+        #expect(decoded.isAllDay == false)
+        #expect(decoded.isTimed)
+        #expect(decoded.isValid)
+    }
+
+    @Test func nonBoolFlagFailsToDecode() throws {
+        var fields = try Firestore.Encoder().encode(makeEvent())
+        fields["isAllDay"] = "yes"
+        #expect(throws: (any Error).self) {
+            try Firestore.Decoder().decode(Event.self, from: fields)
+        }
+    }
+
+    /// RF-04 link and G6 flag coexist on an all-day architecture visit.
+    @Test func allDayArchitectureVisitKeepsItsBuildingLink() throws {
+        var event = makeEvent()
+        event.buildingId = "building-1"
+        event.isAllDay = true
+        #expect(event.isValid)
+        let fields = try Firestore.Encoder().encode(event)
+        #expect(fields["buildingId"] as? String == "building-1")
+        #expect(fields["isAllDay"] as? Bool == true)
+        #expect(fields.count == 12)
+        #expect(try Firestore.Decoder().decode(Event.self, from: fields) == event)
     }
 
     @Test func firestoreRoundTrip() throws {

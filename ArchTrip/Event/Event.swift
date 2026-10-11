@@ -35,6 +35,12 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
     /// own title/location snapshot, so it stays usable if the Building is deleted.
     /// Omitted from the document when nil, so G2 Events decode unchanged.
     var buildingId: String?
+    /// G6: true for an all-day Event (hotel stay, rental car, whole-day note). All-day
+    /// Events are listed apart from the timed timeline and never count toward
+    /// Travel / Free Time; their days come from `AllDaySchedule`. Omitted from the
+    /// document when nil, so Events written before G6 decode unchanged and stay timed;
+    /// nil and false mean the same thing. Existing Events are never converted.
+    var isAllDay: Bool?
 
     init(
         id: String = UUID().uuidString,
@@ -47,7 +53,8 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         note: String = "",
         createdAt: Date = Date(),
         updatedAt: Date? = nil,
-        buildingId: String? = nil
+        buildingId: String? = nil,
+        isAllDay: Bool? = nil
     ) {
         self.id = id
         self.tripId = tripId
@@ -60,7 +67,11 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
         self.buildingId = buildingId
+        self.isAllDay = isAllDay
     }
+
+    /// Timed Events form the timeline and its Travel / Free Time gaps.
+    var isTimed: Bool { isAllDay != true }
 
     /// Mirrors the constraints enforced by `firebase/firestore.rules`.
     var isValid: Bool {
@@ -80,5 +91,6 @@ nonisolated struct Event: Codable, Identifiable, Equatable, Hashable, Sendable {
 }
 
 extension Event: FirestoreDocument {
-    static let optionalFields = ["buildingId"]
+    /// Both are removed from the stored document by an update that leaves them nil.
+    static let optionalFields = ["buildingId", "isAllDay"]
 }

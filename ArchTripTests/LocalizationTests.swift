@@ -26,7 +26,7 @@ struct LocalizationTests {
     @Test func japaneseCoreUIStrings() throws {
         let expected = [
             "Upcoming": "予定の出張", "Past": "過去の出張", "Add Trip": "出張を追加",
-            "Free time": "空き時間", "Settings": "設定", "Language": "言語",
+            "Travel / Free Time": "移動時間・空き時間", "Settings": "設定", "Language": "言語",
             "Developer Diagnostics": "開発者診断", "Couldn't save changes": "変更を保存できませんでした",
             "Architecture": "建築", "Add to Trip": "出張に追加", "Open in Apple Maps": "Apple Mapsで開く",
             "Visit duration": "見学時間", "This building is no longer available": "この建築は削除されています",
@@ -34,6 +34,12 @@ struct LocalizationTests {
         for (key, value) in expected {
             #expect(try japanese(key) == value, "\(key)")
         }
+    }
+
+    /// G6-UX-01: the gap row is labelled "Travel / Free Time"; the old key is gone.
+    @Test func travelFreeTimeWording() throws {
+        #expect(try japanese("Travel / Free Time") == "移動時間・空き時間")
+        #expect(try japanese("Free time") == "<missing>")
     }
 
     @Test func japaneseG5RepairStrings() throws {
@@ -49,6 +55,22 @@ struct LocalizationTests {
         }
         #expect(String(format: try japanese("%lld events outside the new dates"), 2) == "期間外の予定：2件")
         #expect(String(format: try japanese("New trip dates: %@"), "10月15日 – 10月17日") == "変更後の出張期間：10月15日 – 10月17日")
+    }
+
+    @Test func japaneseG6AllDayStrings() throws {
+        let expected = [
+            "All-day": "終日", "All-day & stays": "終日・滞在情報", "Stay": "宿泊", "Rental car": "レンタカー",
+            "Check-in": "チェックイン", "Check-out": "チェックアウト", "Pickup day": "利用開始日", "Return day": "返却日",
+            "First day": "開始日", "Last day": "終了日", "No timed events on this day": "この日の時刻付き予定はありません",
+            "Shown on each night from check-in until the day before check-out.": "チェックイン日からチェックアウト前日までの各夜に表示します。",
+            "Shown on each day from pickup through return.": "利用開始日から返却日までの各日に表示します。",
+            "Shown on each day in this range.": "開始日から終了日までの各日に表示します。",
+            "All-day events don't count toward Travel / Free Time.": "終日の予定は移動時間・空き時間の計算に含まれません。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("Check-in %@ · Check-out %@"), "10月15日", "10月17日") == "チェックイン 10月15日・チェックアウト 10月17日")
     }
 
     @Test func japaneseFormatStringsKeepSpecifiers() throws {

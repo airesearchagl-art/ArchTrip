@@ -49,6 +49,8 @@ struct TripDashboardView: View {
         let days = TimelineBuilder.days(for: trip, events: events, calendar: calendar)
         let day = currentDay(in: days)
         let items = TimelineBuilder.items(for: day, events: events, calendar: calendar)
+        let allDay = TimelineBuilder.allDayEvents(on: day, from: events, calendar: calendar)
+        let emptyText: LocalizedStringKey = allDay.isEmpty ? "No events on this day" : "No timed events on this day"
         let isOutside = { (day: Date) in TimelineBuilder.isOutside(day, trip: trip, calendar: calendar) }
         return List {
             Section {
@@ -80,7 +82,7 @@ struct TripDashboardView: View {
 
             Section {
                 if items.isEmpty {
-                    Text("No events on this day")
+                    Text(emptyText)
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(items) { item in
@@ -111,6 +113,28 @@ struct TripDashboardView: View {
                             .foregroundStyle(.orange)
                             .textCase(nil)
                     }
+                }
+            }
+
+            // G6: stays, rental cars and other all-day Events sit below the timed
+            // timeline and never take part in Travel / Free Time.
+            if !allDay.isEmpty {
+                Section {
+                    ForEach(allDay) { event in
+                        Button {
+                            editorTarget = .edit(event)
+                        } label: {
+                            AllDayEventRow(event: event)
+                        }
+                        .tint(.primary)
+                        .swipeActions {
+                            Button("Delete", role: .destructive) {
+                                session.deleteEvent(event)
+                            }
+                        }
+                    }
+                } header: {
+                    Text("All-day & stays")
                 }
             }
         }
@@ -245,6 +269,61 @@ struct EventRow: View {
     }
 }
 
+/// A stay, rental car or other all-day Event in the "All-day & stays" section (G6).
+/// Shows the stay as check-in / check-out and other ranges as first – last day.
+struct AllDayEventRow: View {
+    let event: Event
+
+    @Environment(\.locale) private var locale
+    private let calendar = Calendar.current
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: event.type.systemImage)
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(event.type.tint, in: .circle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(event.type.allDayLabel)
+                    .font(.caption.weight(.medium))
+                    .foregroundStyle(.secondary)
+                Text(verbatim: event.title)
+                    .font(.body.weight(.semibold))
+                Group {
+                    range
+                    if !event.locationName.isEmpty {
+                        Text(verbatim: event.locationName)
+                    }
+                    if !event.note.isEmpty {
+                        Text(verbatim: event.note)
+                            .lineLimit(3)
+                    }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private var range: some View {
+        let first = AllDaySchedule.firstDay(of: event, calendar: calendar)
+        let last = AllDaySchedule.lastDay(of: event, calendar: calendar)
+        switch AllDaySchedule.endConvention(for: event.type) {
+        case .checkOut:
+            let checkOut = AllDaySchedule.dayAfter(last, calendar: calendar)
+            Text("Check-in \(DateFormatting.shortDate(first, locale: locale)) · Check-out \(DateFormatting.shortDate(checkOut, locale: locale))")
+        case .lastDay:
+            if first != last {
+                Text(verbatim: DateFormatting.dateRange(first, last, locale: locale, calendar: calendar))
+            }
+        }
+    }
+}
+
+/// The gap between two timed Events (G6-UX-01: "Travel / Free Time"). The duration is
+/// the whole gap, usable for moving between Events; it is not an estimated travel time.
 struct FreeTimeRow: View {
     let start: Date
     let end: Date
@@ -255,7 +334,7 @@ struct FreeTimeRow: View {
             line
             HStack(spacing: 4) {
                 Image(systemName: "cup.and.saucer.fill")
-                Text("Free time")
+                Text("Travel / Free Time")
                 durationText(duration)
             }
             .lineLimit(1)

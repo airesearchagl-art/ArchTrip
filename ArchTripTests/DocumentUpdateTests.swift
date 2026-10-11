@@ -32,11 +32,29 @@ struct DocumentUpdateTests {
         #expect(unlinked["createdAt"] == nil)
         #expect(unlinked["buildingId"] is FieldValue, "nil buildingId must delete the stored field")
         #expect(Set(unlinked.keys) == [
-            "id", "tripId", "type", "title", "startDate", "endDate", "locationName", "note", "updatedAt", "buildingId",
+            "id", "tripId", "type", "title", "startDate", "endDate", "locationName", "note", "updatedAt",
+            "buildingId", "isAllDay",
         ])
 
         let linked = try DocumentUpdate.fields(for: makeEvent(buildingId: "building-1"))
         #expect(linked["buildingId"] as? String == "building-1")
+    }
+
+    /// G6: a timed Event's update removes any stored flag (so converting an all-day Event
+    /// back to timed deletes it rather than writing false); an all-day update keeps it.
+    /// `createdAt` stays out of both.
+    @Test func eventUpdateDeletesAbsentAllDayFlag() throws {
+        let timed = try DocumentUpdate.fields(for: makeEvent())
+        #expect(timed["isAllDay"] is FieldValue, "nil isAllDay must delete the stored field")
+        #expect(timed["createdAt"] == nil)
+
+        var stay = makeEvent()
+        stay.type = .hotel
+        stay.isAllDay = true
+        let allDay = try DocumentUpdate.fields(for: stay)
+        #expect(allDay["isAllDay"] as? Bool == true)
+        #expect(allDay["createdAt"] == nil)
+        #expect(Set(allDay.keys) == Set(timed.keys))
     }
 
     @Test func buildingUpdateDeletesAbsentOptionals() throws {
@@ -57,8 +75,11 @@ struct DocumentUpdateTests {
     /// Optional field names must be real document keys, or an update would add fields
     /// the rules reject.
     @Test func optionalFieldNamesMatchTheEncodedDocuments() throws {
-        let event = try Firestore.Encoder().encode(makeEvent(buildingId: "building-1"))
+        var full = makeEvent(buildingId: "building-1")
+        full.isAllDay = true
+        let event = try Firestore.Encoder().encode(full)
         #expect(Set(Event.optionalFields).isSubset(of: Set(event.keys)))
+        #expect(Event.optionalFields == ["buildingId", "isAllDay"])
 
         let building = try Firestore.Encoder().encode(
             Building(id: "b3", name: "Full", completedYear: 2000, latitude: 1, longitude: 2, createdAt: date)

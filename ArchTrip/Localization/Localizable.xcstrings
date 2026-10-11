@@ -245,6 +245,36 @@
         }
       }
     },
+    "All-day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終日"
+          }
+        }
+      }
+    },
+    "All-day & stays" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終日・滞在情報"
+          }
+        }
+      }
+    },
+    "All-day events don't count toward Travel / Free Time." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終日の予定は移動時間・空き時間の計算に含まれません。"
+          }
+        }
+      }
+    },
     "Architect" : {
       "localizations" : {
         "ja" : {
@@ -371,6 +401,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "ネットワーク接続を確認して、もう一度お試しください。"
+          }
+        }
+      }
+    },
+    "Check-in" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックイン"
+          }
+        }
+      }
+    },
+    "Check-in %@ · Check-out %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックイン %1$@・チェックアウト %2$@"
+          }
+        }
+      }
+    },
+    "Check-out" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックアウト"
           }
         }
       }
@@ -855,6 +915,16 @@
         }
       }
     },
+    "First day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始日"
+          }
+        }
+      }
+    },
     "Flight" : {
       "localizations" : {
         "ja" : {
@@ -871,16 +941,6 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "食事"
-          }
-        }
-      }
-    },
-    "Free time" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "空き時間"
           }
         }
       }
@@ -911,6 +971,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "言語"
+          }
+        }
+      }
+    },
+    "Last day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "終了日"
           }
         }
       }
@@ -1085,6 +1155,16 @@
         }
       }
     },
+    "No timed events on this day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この日の時刻付き予定はありません"
+          }
+        }
+      }
+    },
     "No trips yet" : {
       "localizations" : {
         "ja" : {
@@ -1195,6 +1275,16 @@
         }
       }
     },
+    "Pickup day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利用開始日"
+          }
+        }
+      }
+    },
     "Place search" : {
       "localizations" : {
         "ja" : {
@@ -1231,6 +1321,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "準備完了"
+          }
+        }
+      }
+    },
+    "Rental car" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "レンタカー"
+          }
+        }
+      }
+    },
+    "Return day" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "返却日"
           }
         }
       }
@@ -1325,6 +1435,36 @@
         }
       }
     },
+    "Shown on each day from pickup through return." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "利用開始日から返却日までの各日に表示します。"
+          }
+        }
+      }
+    },
+    "Shown on each day in this range." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "開始日から終了日までの各日に表示します。"
+          }
+        }
+      }
+    },
+    "Shown on each night from check-in until the day before check-out." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "チェックイン日からチェックアウト前日までの各夜に表示します。"
+          }
+        }
+      }
+    },
     "Sign In" : {
       "localizations" : {
         "ja" : {
@@ -1391,6 +1531,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "開始日"
+          }
+        }
+      }
+    },
+    "Stay" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "宿泊"
           }
         }
       }
@@ -1571,6 +1721,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "電車"
+          }
+        }
+      }
+    },
+    "Travel / Free Time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "移動時間・空き時間"
           }
         }
       }
