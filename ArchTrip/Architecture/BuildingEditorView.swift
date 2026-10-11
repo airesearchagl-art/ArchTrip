@@ -207,10 +207,10 @@ struct BuildingEditorView: View {
         let building = draft
         guard building.isValid, !hasSaved else { return }
         hasSaved = true
-        if existing == nil {
-            session.createBuilding(building)
+        if let existing {
+            session.updateBuilding(building, replacing: existing)
         } else {
-            session.updateBuilding(building)
+            session.createBuilding(building)
         }
         dismiss()
     }

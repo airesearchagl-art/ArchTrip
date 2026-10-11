@@ -306,10 +306,10 @@ struct EventEditorView: View {
         )
         guard event.isValid, !hasSaved else { return }
         hasSaved = true
-        if existing == nil {
-            session.createEvent(event)
+        if let existing {
+            session.updateEvent(event, replacing: existing)
         } else {
-            session.updateEvent(event)
+            session.createEvent(event)
         }
         dismiss()
     }

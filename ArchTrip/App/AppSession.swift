@@ -128,9 +128,12 @@ final class AppSession {
         write("create event \(event.id.prefix(8))") { try store.createEvent(event, uid: uid, serverAcknowledged: $0) }
     }
 
-    func updateEvent(_ event: Event) {
+    /// `previous` is the stored Event the editor loaded; see `TripStore.updateEvent`.
+    func updateEvent(_ event: Event, replacing previous: Event) {
         guard let uid, let store else { return }
-        write("update event \(event.id.prefix(8))") { try store.updateEvent(event, uid: uid, serverAcknowledged: $0) }
+        write("update event \(event.id.prefix(8))") {
+            try store.updateEvent(event, replacing: previous, uid: uid, serverAcknowledged: $0)
+        }
     }
 
     func deleteEvent(_ event: Event) {
@@ -146,9 +149,12 @@ final class AppSession {
         write("create building \(building.id.prefix(8))") { try store.createBuilding(building, uid: uid, serverAcknowledged: $0) }
     }
 
-    func updateBuilding(_ building: Building) {
+    /// `previous` is the stored Building the editor loaded; see `TripStore.updateBuilding`.
+    func updateBuilding(_ building: Building, replacing previous: Building) {
         guard let uid, let store else { return }
-        write("update building \(building.id.prefix(8))") { try store.updateBuilding(building, uid: uid, serverAcknowledged: $0) }
+        write("update building \(building.id.prefix(8))") {
+            try store.updateBuilding(building, replacing: previous, uid: uid, serverAcknowledged: $0)
+        }
     }
 
     /// Deletes only the Building; Events that link to it are left untouched.

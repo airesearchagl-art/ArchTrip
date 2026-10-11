@@ -1,3 +1,5 @@
+import FirebaseAuth
+import FirebaseCore
 import FirebaseFirestore
 import Foundation
 import Testing
@@ -126,7 +128,7 @@ struct FirebaseHotelTimesIntegrationTests {
             var edited = try #require(read.items.first)
             edited.checkOutMinutes = nil
             edited.updatedAt = Date()
-            try await acknowledged { try store.updateEvent(edited, uid: uid, serverAcknowledged: $0) }
+            try await acknowledged { try store.updateEvent(edited, replacing: stay, uid: uid, serverAcknowledged: $0) }
             let afterEdit = try await rawEvent(uid: uid, tripID: trip.id, eventID: stay.id)
             #expect(afterEdit["checkInMinutes"] as? Int == 17 * 60)
             #expect(afterEdit["checkOutMinutes"] == nil)
@@ -175,5 +177,58 @@ struct FirebaseHotelTimesIntegrationTests {
             }
         }
         print("UX05-EVIDENCE denied: other-user write with clock times")
+    }
+
+    /// Offline: clearing the check-out time of a stay that already exists on the server
+    /// must keep the cached stay readable, with the field gone and the write pending, until
+    /// it is acknowledged, both for a one-shot cache read and for the listener the dashboard
+    /// uses. Before the fix the update also deleted the absent `buildingId`, and Firestore's
+    /// local view then skipped the `checkOutMinutes` delete and dropped `updatedAt`, so the
+    /// stay failed to decode until reconnect. Throwaway secondary app and disposable user.
+    @Test func offlineClearOfAClockTimeKeepsTheCachedStayReadable() async throws {
+        let name = "ux05OfflineEdit\(UUID().uuidString.replacingOccurrences(of: "-", with: ""))"
+        FirebaseApp.configure(name: name, options: try #require(FirebaseApp.app()).options)
+        let app = try #require(FirebaseApp.app(name: name))
+        let user = try await Auth.auth(app: app).signInAnonymously().user
+        let uid = user.uid
+        let db = Firestore.firestore(app: app)
+        let store = TripStore(db: db)
+        let trip = makeTrip()
+        try await acknowledged { try store.createTrip(trip, uid: uid, serverAcknowledged: $0) }
+        let stay = makeStay(tripID: trip.id)
+        try await acknowledged { try store.createEvent(stay, uid: uid, serverAcknowledged: $0) }
+        let stored = try #require(try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server).items.first)
+
+        try await db.disableNetwork()
+        var edited = stored
+        edited.checkOutMinutes = nil
+        edited.updatedAt = now().addingTimeInterval(1)
+        let pending = PendingWrite()
+        try store.updateEvent(edited, replacing: stored, uid: uid, serverAcknowledged: pending.handler)
+        let cached = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .cache)
+        #expect(cached.isFromCache && cached.hasPendingWrites)
+        #expect(cached.failures.isEmpty, "\(cached.failures)")
+        #expect(cached.items == [edited])
+        #expect(cached.items.first?.checkInMinutes == 17 * 60 && cached.items.first?.checkOutMinutes == nil)
+        var listened: QueryResult<Event>?
+        for await result in store.eventUpdates(uid: uid, tripID: trip.id) {
+            if case .success(let snapshot) = result { listened = snapshot }
+            break
+        }
+        #expect(listened?.failures.isEmpty == true && listened?.items == [edited] && listened?.hasPendingWrites == true)
+
+        try await db.enableNetwork()
+        try await pending.wait()
+        let server = try await store.fetchEvents(uid: uid, tripID: trip.id, source: .server)
+        #expect(!server.isFromCache && server.failures.isEmpty && server.items == [edited])
+        let raw = try await db.document(TripPath.event(uid: uid, tripID: trip.id, eventID: stay.id)).getDocument(source: .server).data() ?? [:]
+        #expect(raw["checkInMinutes"] as? Int == 17 * 60 && raw["checkOutMinutes"] == nil && raw["createdAt"] is Timestamp)
+        print("UX05-EVIDENCE offline clear of check-out: cached stay readable with the field gone (pending), listener agrees, acknowledged after reconnect, server matches")
+
+        try? await db.document(TripPath.event(uid: uid, tripID: trip.id, eventID: stay.id)).delete()
+        try? await db.document(TripPath.document(uid: uid, tripID: trip.id)).delete()
+        try? await db.terminate()
+        try? await user.delete()
+        _ = await app.delete()
     }
 }
