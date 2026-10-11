@@ -68,6 +68,22 @@ nonisolated enum AllDaySchedule {
         dates(firstDay: checkIn, endExclusive: checkOut, calendar: calendar)
     }
 
+    /// `minutes` after local midnight on `day` (17:00 is 1020), or nil when out of range.
+    /// Used for a stay's check-in / check-out markers (G6-UX-05); a clock time that does
+    /// not exist on a daylight-saving day is moved forward by the calendar.
+    static func clock(minutes: Int, on day: Date, calendar: Calendar) -> Date? {
+        guard Event.clockMinutesRange.contains(minutes) else { return nil }
+        return calendar.date(
+            bySettingHour: minutes / 60, minute: minutes % 60, second: 0, of: calendar.startOfDay(for: day)
+        )
+    }
+
+    /// The clock time of `date` as minutes after midnight, for storing a picked time.
+    static func minutes(of date: Date, calendar: Calendar) -> Int {
+        let clock = calendar.dateComponents([.hour, .minute], from: date)
+        return (clock.hour ?? 0) * 60 + (clock.minute ?? 0)
+    }
+
     static func dayAfter(_ day: Date, calendar: Calendar) -> Date {
         let start = calendar.startOfDay(for: day)
         return calendar.date(byAdding: .day, value: 1, to: start) ?? start.addingTimeInterval(86_400)

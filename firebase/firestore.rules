@@ -4,8 +4,8 @@ rules_version = '2';
 // trips/** (Trips and their Events) and buildings/*. Everything else is denied by default.
 //
 // Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId,
-// Event.isAllDay) are omitted from documents when unset (Firestore.Encoder skips nil),
-// so they may be absent.
+// Event.isAllDay, Event.checkInMinutes/checkOutMinutes) are omitted from documents when
+// unset (Firestore.Encoder skips nil), so they may be absent.
 service cloud.firestore {
   match /databases/{database}/documents {
     function isOwner(userId) {
@@ -23,10 +23,17 @@ service cloud.firestore {
         && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
     }
 
+    // A hotel stay's optional clock time (G6-UX-05): minutes after local midnight on the
+    // check-in day or the check-out day, on all-day hotel Events only.
+    function isHotelClockTime(d, minutes) {
+      return minutes is int && minutes >= 0 && minutes < 1440
+        && d.type == 'hotel' && ('isAllDay' in d) && d.isAllDay == true;
+    }
+
     function isValidEvent(tripId, eventId) {
       let d = request.resource.data;
       let fields = ['id', 'tripId', 'type', 'title', 'startDate', 'endDate', 'locationName', 'note', 'createdAt', 'updatedAt'];
-      return d.keys().hasOnly(fields.concat(['buildingId', 'isAllDay']))
+      return d.keys().hasOnly(fields.concat(['buildingId', 'isAllDay', 'checkInMinutes', 'checkOutMinutes']))
         && d.keys().hasAll(fields)
         && d.id == eventId
         && d.tripId == tripId
@@ -44,7 +51,9 @@ service cloud.firestore {
         // Optional all-day flag (G6): stays, rental cars and whole-day notes are listed apart
         // from the timed timeline. Absent or false means a timed Event, so every document
         // written before G6 keeps its meaning without being touched.
-        && (!('isAllDay' in d) || d.isAllDay is bool);
+        && (!('isAllDay' in d) || d.isAllDay is bool)
+        && (!('checkInMinutes' in d) || isHotelClockTime(d, d.checkInMinutes))
+        && (!('checkOutMinutes' in d) || isHotelClockTime(d, d.checkOutMinutes));
     }
 
     function tripExists(userId, tripId) {

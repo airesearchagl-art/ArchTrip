@@ -79,6 +79,21 @@ struct LocalizationTests {
         #expect(try japanese("Completed") == "終了済み")
     }
 
+    /// G6-UX-05: hotel clock-time controls and the derived marker rows.
+    @Test func japaneseHotelClockTimeStrings() throws {
+        let expected = [
+            "Set check-in time": "チェックイン時刻を指定する", "Check-in time": "チェックイン時刻",
+            "Set check-out time": "チェックアウト時刻を指定する", "Check-out time": "チェックアウト時刻",
+            "Stay times": "宿泊の時刻", "Hotel check-in": "ホテルチェックイン", "Hotel check-out": "ホテルチェックアウト",
+            "Shown on the timeline as check-in and check-out markers on their own days. The stay itself stays under All-day & stays.":
+                "時刻付きの予定一覧に、それぞれの日のチェックイン・チェックアウトの目印として表示します。宿泊自体は「終日・滞在情報」に残ります。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("Stay: %@"), "Hotel") == "宿泊：Hotel")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")

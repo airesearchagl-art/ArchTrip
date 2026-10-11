@@ -146,6 +146,14 @@ struct TripDashboardView: View {
                         FreeTimeRow(start: start, end: end)
                     case .now(let date):
                         NowRow(date: date)
+                    case .marker(let marker):
+                        // Derived from the stay: opens the stay's editor and has no delete of its own.
+                        Button {
+                            editorTarget = .edit(marker.event)
+                        } label: {
+                            HotelMarkerRow(marker: marker, isCompleted: marker.time < now)
+                        }
+                        .tint(.primary)
                     }
                 }
             } header: {
@@ -279,6 +287,50 @@ struct EventRow: View {
                     if !event.locationName.isEmpty {
                         Text(verbatim: "· \(event.locationName)")
                     }
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+        .opacity(isCompleted ? 0.6 : 1)
+        .accessibilityElement(children: .combine)
+        .accessibilityValue(isCompleted ? Text("Completed") : Text(verbatim: ""))
+    }
+}
+
+/// A hotel stay's derived check-in or check-out point on the timed timeline (G6-UX-05).
+/// An instant, not a busy period; it names the stay it comes from.
+struct HotelMarkerRow: View {
+    let marker: HotelMarker
+    var isCompleted = false
+
+    @Environment(\.locale) private var locale
+
+    private var title: LocalizedStringKey {
+        switch marker.kind {
+        case .checkIn: "Hotel check-in"
+        case .checkOut: "Hotel check-out"
+        }
+    }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: "bed.double.fill")
+                .foregroundStyle(.white)
+                .frame(width: 32, height: 32)
+                .background(EventType.hotel.tint, in: .circle)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: DateFormatting.time(marker.time, locale: locale))
+                    .font(.subheadline.monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(isCompleted ? .secondary : .primary)
+                Label {
+                    Text("Stay: \(marker.event.title)")
+                } icon: {
+                    Image(systemName: "link")
                 }
                 .font(.caption)
                 .foregroundStyle(.secondary)

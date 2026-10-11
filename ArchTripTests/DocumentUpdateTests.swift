@@ -33,7 +33,7 @@ struct DocumentUpdateTests {
         #expect(unlinked["buildingId"] is FieldValue, "nil buildingId must delete the stored field")
         #expect(Set(unlinked.keys) == [
             "id", "tripId", "type", "title", "startDate", "endDate", "locationName", "note", "updatedAt",
-            "buildingId", "isAllDay",
+            "buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes",
         ])
 
         let linked = try DocumentUpdate.fields(for: makeEvent(buildingId: "building-1"))
@@ -57,6 +57,21 @@ struct DocumentUpdateTests {
         #expect(Set(allDay.keys) == Set(timed.keys))
     }
 
+    /// G6-UX-05: a cleared clock time deletes its field; a set one is written as an int.
+    @Test func eventUpdateDeletesAbsentClockTimes() throws {
+        var stay = makeEvent()
+        stay.type = .hotel
+        stay.buildingId = nil
+        stay.isAllDay = true
+        stay.checkInMinutes = 17 * 60
+        let fields = try DocumentUpdate.fields(for: stay)
+        #expect(fields["checkInMinutes"] as? Int == 1_020)
+        #expect(fields["checkOutMinutes"] is FieldValue, "nil checkOutMinutes must delete the stored field")
+        #expect(fields["createdAt"] == nil)
+        let timed = try DocumentUpdate.fields(for: makeEvent())
+        #expect(timed["checkInMinutes"] is FieldValue && timed["checkOutMinutes"] is FieldValue)
+    }
+
     @Test func buildingUpdateDeletesAbsentOptionals() throws {
         let minimal = Building(id: "b1", name: "Minimal", createdAt: date)
         let fields = try DocumentUpdate.fields(for: minimal)
@@ -75,11 +90,14 @@ struct DocumentUpdateTests {
     /// Optional field names must be real document keys, or an update would add fields
     /// the rules reject.
     @Test func optionalFieldNamesMatchTheEncodedDocuments() throws {
+        // Document shape only; this combination is not valid and never written by the app.
         var full = makeEvent(buildingId: "building-1")
         full.isAllDay = true
+        full.checkInMinutes = 1
+        full.checkOutMinutes = 2
         let event = try Firestore.Encoder().encode(full)
         #expect(Set(Event.optionalFields).isSubset(of: Set(event.keys)))
-        #expect(Event.optionalFields == ["buildingId", "isAllDay"])
+        #expect(Event.optionalFields == ["buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes"])
 
         let building = try Firestore.Encoder().encode(
             Building(id: "b3", name: "Full", completedYear: 2000, latitude: 1, longitude: 2, createdAt: date)

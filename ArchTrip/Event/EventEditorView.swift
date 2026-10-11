@@ -17,6 +17,11 @@ struct EventEditorView: View {
     @State private var isAllDay: Bool
     @State private var firstDay: Date
     @State private var endExclusive: Date
+    /// Hotel stay clock times (G6-UX-05): kept while hidden, saved for an all-day hotel only.
+    @State private var hasCheckInTime: Bool
+    @State private var checkInTime: Date
+    @State private var hasCheckOutTime: Bool
+    @State private var checkOutTime: Date
     @State private var locationName: String
     @State private var note: String
     /// Link to an existing Building (architecture Events only, RF-04).
@@ -41,6 +46,11 @@ struct EventEditorView: View {
         let last = existing.map { TimelineBuilder.lastDay(of: $0, calendar: calendar) } ?? first
         _firstDay = State(initialValue: first)
         _endExclusive = State(initialValue: AllDaySchedule.dayAfter(last, calendar: calendar))
+        // Only the clock part of these dates is used; 15:00 / 10:00 are the defaults when enabled.
+        _hasCheckInTime = State(initialValue: existing?.checkInMinutes != nil)
+        _hasCheckOutTime = State(initialValue: existing?.checkOutMinutes != nil)
+        _checkInTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.checkInMinutes ?? 15 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
+        _checkOutTime = State(initialValue: AllDaySchedule.clock(minutes: existing?.checkOutMinutes ?? 10 * 60, on: defaultDay, calendar: calendar) ?? defaultDay)
         _locationName = State(initialValue: existing?.locationName ?? "")
         _note = State(initialValue: existing?.note ?? "")
         _buildingId = State(initialValue: existing?.buildingId)
@@ -94,6 +104,9 @@ struct EventEditorView: View {
                             Text("All-day events don't count toward Travel / Free Time.")
                         }
                     }
+                }
+                if type == .hotel, isAllDay {
+                    clockTimesSection
                 }
                 if type == .architecture {
                     buildingSection
@@ -200,6 +213,28 @@ struct EventEditorView: View {
         }
     }
 
+    // MARK: Hotel clock times (G6-UX-05)
+
+    /// Optional check-in / check-out clock times of a stay, each on its own switch. They
+    /// become markers on the timed timeline (the check-out marker on the check-out day);
+    /// the stay itself stays all-day. Dates are set above; these are times only.
+    private var clockTimesSection: some View {
+        Section {
+            Toggle("Set check-in time", isOn: $hasCheckInTime)
+            if hasCheckInTime {
+                DatePicker("Check-in time", selection: $checkInTime, displayedComponents: .hourAndMinute)
+            }
+            Toggle("Set check-out time", isOn: $hasCheckOutTime)
+            if hasCheckOutTime {
+                DatePicker("Check-out time", selection: $checkOutTime, displayedComponents: .hourAndMinute)
+            }
+        } header: {
+            Text("Stay times")
+        } footer: {
+            Text("Shown on the timeline as check-in and check-out markers on their own days. The stay itself stays under All-day & stays.")
+        }
+    }
+
     // MARK: Building (RF-04)
 
     /// Pick an existing Building (no duplicate Buildings, no MapKit search here) or
@@ -262,7 +297,12 @@ struct EventEditorView: View {
             // Keep the Building link only while the Event stays an architecture visit.
             buildingId: type == .architecture ? buildingId : nil,
             // Timed Events omit the flag, so their documents stay exactly as before G6.
-            isAllDay: isAllDay ? true : nil
+            isAllDay: isAllDay ? true : nil,
+            // Clock times belong to all-day hotel stays only (G6-UX-05).
+            checkInMinutes: type == .hotel && isAllDay && hasCheckInTime
+                ? AllDaySchedule.minutes(of: checkInTime, calendar: calendar) : nil,
+            checkOutMinutes: type == .hotel && isAllDay && hasCheckOutTime
+                ? AllDaySchedule.minutes(of: checkOutTime, calendar: calendar) : nil
         )
         guard event.isValid, !hasSaved else { return }
         hasSaved = true

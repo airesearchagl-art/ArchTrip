@@ -30,6 +30,8 @@ struct TimelineTests {
                 "free(\(calendar.component(.hour, from: start)):\(calendar.component(.minute, from: start))-\(calendar.component(.hour, from: end)):\(calendar.component(.minute, from: end)))"
             case .now(let date):
                 "now(\(calendar.component(.hour, from: date)):\(calendar.component(.minute, from: date)))"
+            case .marker(let marker):
+                marker.id
             }
         }
     }
@@ -344,6 +346,98 @@ struct TimelineTests {
         items = []
         TimelineBuilder.insert(.now(at(16, 11)), at: at(16, 11), afterTies: true, into: &items)
         #expect(ids(items) == ["now(11:0)"])
+    }
+
+    // MARK: Hotel markers (G6-UX-05)
+
+    private func stay(
+        _ id: String, checkIn: Int, checkOut: Int, in checkInMinutes: Int? = nil, out checkOutMinutes: Int? = nil
+    ) -> Event {
+        Event(
+            id: id, tripId: "trip", type: .hotel, title: id, startDate: at(checkIn, 0), endDate: at(checkOut, 0),
+            createdAt: at(1, 0), isAllDay: true, checkInMinutes: checkInMinutes, checkOutMinutes: checkOutMinutes
+        )
+    }
+
+    @Test func markersJoinTheTimedTimelineOnTheirDays() {
+        let hotel = stay("stay", checkIn: 15, checkOut: 17, in: 17 * 60, out: 9 * 60)
+        let flight = event("flight", at(15, 13), at(15, 14))
+        let dinner = event("dinner", at(15, 18, 30), at(15, 20))
+        let day15 = TimelineBuilder.items(for: at(15, 0), events: [hotel, flight, dinner], calendar: calendar)
+        #expect(ids(day15) == ["flight", "free(14:0-17:0)", "marker-stay-checkIn", "free(17:0-18:30)", "dinner"])
+        #expect(freeSeconds(day15) == 270 * 60, "the gap total is unchanged by the marker")
+        #expect(noNegativeOrEmptyGaps(day15))
+        // The last night has no marker; the check-out day shows only the marker.
+        #expect(TimelineBuilder.items(for: at(16, 0), events: [hotel], calendar: calendar).isEmpty)
+        #expect(ids(TimelineBuilder.items(for: at(17, 0), events: [hotel], calendar: calendar)) == ["marker-stay-checkOut"])
+        #expect(TimelineBuilder.allDayEvents(on: at(17, 0), from: [hotel], calendar: calendar).isEmpty)
+        #expect(TimelineBuilder.allDayEvents(on: at(16, 0), from: [hotel], calendar: calendar).map(\.id) == ["stay"])
+    }
+
+    @Test func markersNeverCreateOrShortenGaps() {
+        let hotel = stay("stay", checkIn: 15, checkOut: 16, in: 17 * 60)
+        let a = event("a", at(15, 16, 50), at(15, 16, 55))
+        let b = event("b", at(15, 17, 10), at(15, 18)) // 15 min apart: no gap row, marker between
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [hotel, a, b], calendar: calendar)) == ["a", "marker-stay-checkIn", "b"])
+        // A marker next to a single Event makes no gap either.
+        let late = event("late", at(15, 21), at(15, 22))
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [hotel, late], calendar: calendar)) == ["marker-stay-checkIn", "late"])
+        // A marker during an ongoing Event follows that Event's row.
+        let long = event("long", at(15, 16), at(15, 19))
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [hotel, long], calendar: calendar)) == ["long", "marker-stay-checkIn"])
+        // Without clock times nothing changes.
+        let silent = stay("silent", checkIn: 15, checkOut: 16)
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [silent, a, b], calendar: calendar)) == ["a", "b"])
+    }
+
+    @Test func markerPrecedesAnEventAtTheSameInstantAndNowFollowsIt() {
+        let hotel = stay("stay", checkIn: 15, checkOut: 16, in: 17 * 60)
+        let dinner = event("dinner", at(15, 17), at(15, 18))
+        #expect(ids(TimelineBuilder.items(for: at(15, 0), events: [hotel, dinner], calendar: calendar)) == ["marker-stay-checkIn", "dinner"])
+        let atSeventeen = TimelineBuilder.items(for: at(15, 0), events: [hotel, dinner], calendar: calendar, now: at(15, 17))
+        #expect(ids(atSeventeen) == ["marker-stay-checkIn", "dinner", "now(17:0)"])
+        let before = TimelineBuilder.items(for: at(15, 0), events: [hotel, dinner], calendar: calendar, now: at(15, 16, 30))
+        #expect(ids(before) == ["now(16:30)", "marker-stay-checkIn", "dinner"])
+        let late = event("late", at(15, 18, 30), at(15, 19))
+        let between = TimelineBuilder.items(for: at(15, 0), events: [hotel, late], calendar: calendar, now: at(15, 17, 30))
+        #expect(ids(between) == ["marker-stay-checkIn", "now(17:30)", "late"])
+    }
+
+    @Test func markerAndNowInsideTheSameGap() {
+        let hotel = stay("stay", checkIn: 15, checkOut: 16, in: 17 * 60)
+        let flight = event("flight", at(15, 13), at(15, 14))
+        let dinner = event("dinner", at(15, 18, 30), at(15, 20))
+        let earlier = TimelineBuilder.items(for: at(15, 0), events: [hotel, flight, dinner], calendar: calendar, now: at(15, 16, 30))
+        #expect(ids(earlier) == [
+            "flight", "free(14:0-16:30)", "now(16:30)", "free(16:30-17:0)", "marker-stay-checkIn", "free(17:0-18:30)", "dinner",
+        ])
+        #expect(freeSeconds(earlier) == 270 * 60)
+        #expect(noNegativeOrEmptyGaps(earlier))
+        let later = TimelineBuilder.items(for: at(15, 0), events: [hotel, flight, dinner], calendar: calendar, now: at(15, 17, 30))
+        #expect(ids(later) == [
+            "flight", "free(14:0-17:0)", "marker-stay-checkIn", "free(17:0-17:30)", "now(17:30)", "free(17:30-18:30)", "dinner",
+        ])
+        #expect(freeSeconds(later) == 270 * 60)
+        #expect(noNegativeOrEmptyGaps(later))
+    }
+
+    @Test func multipleStaysAndIdenticalStarts() {
+        let first = stay("a", checkIn: 15, checkOut: 17, in: 15 * 60, out: 15 * 60)
+        let second = stay("b", checkIn: 17, checkOut: 18, in: 15 * 60)
+        let meeting = event("meeting", at(17, 15), at(17, 16))
+        let items = TimelineBuilder.items(for: at(17, 0), events: [meeting, second, first], calendar: calendar, now: at(17, 15))
+        #expect(ids(items) == ["marker-a-checkOut", "marker-b-checkIn", "meeting", "now(15:0)"])
+        #expect(TimelineBuilder.allDayEvents(on: at(17, 0), from: [first, second], calendar: calendar).map(\.id) == ["b"])
+    }
+
+    @Test func tripDaysReachTheCheckOutMarkerDay() {
+        let trip = Trip(id: "trip", title: "t", destination: "d", startDate: at(15, 0), endDate: at(16, 0))
+        let hotel = stay("stay", checkIn: 15, checkOut: 17, out: 9 * 60)
+        #expect(TimelineBuilder.days(for: trip, events: [hotel], calendar: calendar) == [at(15, 0), at(16, 0), at(17, 0)])
+        let silent = stay("silent", checkIn: 15, checkOut: 17)
+        #expect(TimelineBuilder.days(for: trip, events: [silent], calendar: calendar) == [at(15, 0), at(16, 0)])
+        // RF-02 counts the stay by its nights, not by the marker day.
+        #expect(TimelineBuilder.events(outside: trip, from: [hotel], calendar: calendar).isEmpty)
     }
 
     @Test func hoursAndMinutes() {
