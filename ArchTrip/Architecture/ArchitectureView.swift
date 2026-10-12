@@ -113,6 +113,8 @@ private struct BuildingListContent: View {
 struct BuildingRow: View {
     let building: Building
 
+    @Environment(AppSession.self) private var session
+
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
             Image(systemName: building.visited ? "checkmark.circle.fill" : "building.columns.fill")
@@ -126,7 +128,13 @@ struct BuildingRow: View {
                     Text(verbatim: building.architect)
                         .font(.subheadline)
                 }
-                if !building.address.isEmpty {
+                // A linked Building shows the state of its place lookup here, never an
+                // address (the place's address appears with a map in the detail view, and
+                // the stored text is unused while linked). Unlinked rows are unchanged.
+                if let placeID = building.applePlaceId {
+                    PlaceStatusLabel(state: session.places.state(for: placeID))
+                        .font(.caption)
+                } else if !building.address.isEmpty {
                     Text(verbatim: building.address)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -144,7 +152,7 @@ struct BuildingRow: View {
                             .font(.caption2)
                             .foregroundStyle(.green)
                     }
-                    if !building.hasCoordinate {
+                    if !building.hasPlace, !building.hasCoordinate {
                         Label("No location", systemImage: "mappin.slash")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
@@ -153,6 +161,12 @@ struct BuildingRow: View {
             }
         }
         .padding(.vertical, 2)
+        // Screen interest: the place is looked up while the row is on screen and the
+        // request is cancelled when the row goes (`.task` cancels on disappear).
+        .task(id: building.applePlaceId) {
+            guard let placeID = building.applePlaceId else { return }
+            await session.places.hold(placeID)
+        }
     }
 }
 
@@ -161,18 +175,32 @@ private struct BuildingMapContent: View {
     @State private var position: MapCameraPosition = .automatic
     @State private var selection: String?
 
-    private var mapped: [Building] {
-        session.buildings.filter(\.hasCoordinate)
+    /// Buildings with a location now: unlinked ones by their stored coordinates, linked
+    /// ones by their fetched place only (`BuildingLocation`, no fallback).
+    private var mapped: [(building: Building, coordinate: CLLocationCoordinate2D)] {
+        session.buildings.compactMap { building in
+            let location = BuildingLocation.resolve(building, place: building.applePlaceId.flatMap(session.places.place(for:)))
+            guard let coordinates = location.coordinates else { return nil }
+            return (building, CLLocationCoordinate2D(latitude: coordinates.latitude, longitude: coordinates.longitude))
+        }
+    }
+
+    private var placeIDs: Set<String> {
+        Set(session.buildings.compactMap(\.applePlaceId))
+    }
+
+    /// Identity and position of every pin: the camera re-frames when either changes,
+    /// including a place arriving later or a coordinate changing under the same ID.
+    private var cameraKey: [String] {
+        mapped.map { "\($0.building.id)|\($0.coordinate.latitude)|\($0.coordinate.longitude)" }
     }
 
     var body: some View {
         Map(position: $position, selection: $selection) {
-            ForEach(mapped) { building in
-                if let coordinate = building.coordinate {
-                    Marker(building.name, systemImage: "building.columns.fill", coordinate: coordinate)
-                        .tint(building.visited ? .green : building.priorityColor)
-                        .tag(building.id)
-                }
+            ForEach(mapped, id: \.building.id) { entry in
+                Marker(entry.building.name, systemImage: "building.columns.fill", coordinate: entry.coordinate)
+                    .tint(entry.building.visited ? .green : entry.building.priorityColor)
+                    .tag(entry.building.id)
             }
         }
         .safeAreaInset(edge: .bottom) {
@@ -186,9 +214,17 @@ private struct BuildingMapContent: View {
                     }
                     .buttonStyle(.plain)
                 }
-                let unmapped = session.buildings.count - mapped.count
-                if unmapped > 0 {
-                    Text("\(unmapped) buildings without a location are shown in the list only.")
+                let unlocated = session.buildings.filter { !$0.hasPlace && !$0.hasCoordinate }.count
+                if unlocated > 0 {
+                    Text("\(unlocated) buildings without a location are shown in the list only.")
+                        .font(.caption)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(.regularMaterial, in: .capsule)
+                }
+                let waiting = session.buildings.filter { $0.hasPlace }.count - mapped.filter(\.building.hasPlace).count
+                if waiting > 0 {
+                    Text("\(waiting) buildings are waiting for their place.")
                         .font(.caption)
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
@@ -197,8 +233,16 @@ private struct BuildingMapContent: View {
             }
             .padding()
         }
-        .onChange(of: mapped.map(\.id)) {
+        .onChange(of: cameraKey) {
             position = .automatic
+        }
+        .onChange(of: cameraKey.map { $0.split(separator: "|").first.map(String.init) ?? "" }) { _, ids in
+            if let selection, !ids.contains(selection) { self.selection = nil }
+        }
+        // Screen interest in every linked place while the map is shown.
+        .task(id: placeIDs) {
+            guard !placeIDs.isEmpty else { return }
+            await session.places.hold(placeIDs)
         }
     }
 }

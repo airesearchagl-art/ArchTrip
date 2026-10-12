@@ -2,9 +2,22 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(AppSession.self) private var session
+    @Environment(\.scenePhase) private var scenePhase
     @State private var showingSettings = false
 
     var body: some View {
+        content
+            // Place lookups (v0.2): retry shown failures once on return to the foreground,
+            // and drop values nobody is showing under memory pressure.
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { session.places.handleForeground() }
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+                session.places.discardUndisplayed()
+            }
+    }
+
+    private var content: some View {
         Group {
             if case .ready = session.state {
                 TabView {

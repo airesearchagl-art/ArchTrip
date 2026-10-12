@@ -168,11 +168,15 @@ struct DocumentUpdateTests {
     }
 
     @Test func buildingUpdateDeletesClearedOptionals() throws {
-        let full = Building(id: "b2", name: "Full", completedYear: 1997, latitude: 43.0, longitude: 141.3, createdAt: date)
+        let full = Building(
+            id: "b2", name: "Full", completedYear: 1997, latitude: 43.0, longitude: 141.3, createdAt: date,
+            applePlaceId: "I63802885C8189B2B"
+        )
         var stripped = full
         stripped.completedYear = nil
         stripped.latitude = nil
         stripped.longitude = nil
+        stripped.applePlaceId = nil
         let fields = try DocumentUpdate.fields(for: stripped, replacing: full)
         #expect(fields["createdAt"] == nil)
         for key in Building.optionalFields {
@@ -183,6 +187,7 @@ struct DocumentUpdateTests {
         #expect(present["completedYear"] as? Int == 1997)
         #expect(present["latitude"] as? Double == 43.0)
         #expect(present["longitude"] as? Double == 141.3)
+        #expect(present["applePlaceId"] as? String == "I63802885C8189B2B")
 
         // Only the year cleared: the coordinates are rewritten, not deleted.
         var yearless = full
@@ -190,6 +195,42 @@ struct DocumentUpdateTests {
         let partial = try DocumentUpdate.fields(for: yearless, replacing: full)
         #expect(partial["completedYear"] is FieldValue)
         #expect(partial["latitude"] as? Double == 43.0 && partial["longitude"] as? Double == 141.3)
+    }
+
+    /// v0.2: unlinking deletes the stored Place ID; linking writes it verbatim; relinking
+    /// replaces it; a Building that never had one sends no delete. Legacy coordinates kept
+    /// beside a place are rewritten unchanged, never deleted by the link itself.
+    @Test func buildingUpdateHandlesThePlaceLink() throws {
+        let legacy = Building(id: "b5", name: "Legacy", address: "Fixture address", latitude: 43.0, longitude: 141.3, createdAt: date)
+        var linked = legacy
+        linked.applePlaceId = "I63802885C8189B2B"
+
+        let link = try DocumentUpdate.fields(for: linked, replacing: legacy)
+        #expect(link["applePlaceId"] as? String == "I63802885C8189B2B")
+        #expect(link["latitude"] as? Double == 43.0 && link["longitude"] as? Double == 141.3)
+        #expect(link["address"] as? String == "Fixture address")
+        #expect(link.filter { $0.value is FieldValue }.isEmpty, "linking deletes nothing")
+
+        let unlink = try DocumentUpdate.fields(for: legacy, replacing: linked)
+        #expect(unlink["applePlaceId"] is FieldValue)
+        #expect(unlink.filter { $0.value is FieldValue }.map(\.key) == ["applePlaceId"], "exactly one delete")
+        #expect(unlink["latitude"] as? Double == 43.0)
+
+        var relinked = linked
+        relinked.applePlaceId = " other-ID "
+        let relink = try DocumentUpdate.fields(for: relinked, replacing: linked)
+        #expect(relink["applePlaceId"] as? String == " other-ID ", "verbatim, no normalization")
+
+        let never = try DocumentUpdate.fields(for: legacy, replacing: legacy)
+        #expect(never["applePlaceId"] == nil)
+
+        // Clearing the legacy coordinates while linked: only those two are deleted.
+        var cleared = linked
+        cleared.latitude = nil
+        cleared.longitude = nil
+        let clear = try DocumentUpdate.fields(for: cleared, replacing: linked)
+        #expect(Set(clear.filter { $0.value is FieldValue }.map(\.key)) == ["latitude", "longitude"])
+        #expect(clear["applePlaceId"] as? String == "I63802885C8189B2B")
     }
 
     /// Optional field names must be real document keys, or an update would add fields
@@ -207,9 +248,10 @@ struct DocumentUpdateTests {
         #expect(Event.optionalFields == ["buildingId", "isAllDay", "checkInMinutes", "checkOutMinutes", "pickupMinutes", "returnMinutes"])
 
         let building = try Firestore.Encoder().encode(
-            Building(id: "b3", name: "Full", completedYear: 2000, latitude: 1, longitude: 2, createdAt: date)
+            Building(id: "b3", name: "Full", completedYear: 2000, latitude: 1, longitude: 2, createdAt: date, applePlaceId: "I0")
         )
         #expect(Set(Building.optionalFields).isSubset(of: Set(building.keys)))
+        #expect(Building.optionalFields == ["completedYear", "latitude", "longitude", "applePlaceId"])
     }
 
     /// The decoded `createdAt` of a stored document can re-encode into the previous

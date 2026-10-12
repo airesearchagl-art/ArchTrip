@@ -13,6 +13,12 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
     static let priorityRange = 1...3
     static let defaultVisitMinutes = 60
     static let defaultPriority = 2
+    /// This project's defensive bound on `applePlaceId`, not an Apple specification: Apple
+    /// documents a Place ID only as an opaque string (observed IDs are 17 characters). The
+    /// bound caps document size and rejects corrupt input; it is enforced when writing
+    /// (`isWritable`, and the same number in `firebase/firestore.rules`), never when reading,
+    /// so raising or lowering it later cannot make stored Buildings unreadable.
+    static let applePlaceIdMaxLength = 128
 
     var id: String
     var name: String
@@ -28,6 +34,13 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
     var note: String
     var createdAt: Date
     var updatedAt: Date
+    /// Apple Maps Place ID (`MKMapItem.Identifier.rawValue`), kept exactly as MapKit gave it:
+    /// never trimmed, re-cased or truncated. Apple permits storing Place IDs; the place's
+    /// name, address and coordinates are fetched from it when shown and are never stored.
+    /// Omitted from the document when nil. While it is set, `latitude` / `longitude` and
+    /// `address` are not used for display (they stay in the document until the user clears
+    /// them); unlinking shows them again.
+    var applePlaceId: String?
 
     init(
         id: String = UUID().uuidString,
@@ -42,7 +55,8 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
         visited: Bool = false,
         note: String = "",
         createdAt: Date = Date(),
-        updatedAt: Date? = nil
+        updatedAt: Date? = nil,
+        applePlaceId: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -57,12 +71,17 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
         self.note = note
         self.createdAt = createdAt
         self.updatedAt = updatedAt ?? createdAt
+        self.applePlaceId = applePlaceId
     }
 
     var hasCoordinate: Bool { latitude != nil && longitude != nil }
 
+    /// Linked to an Apple Maps place: the place is fetched for display, stored fields are not used.
+    var hasPlace: Bool { applePlaceId != nil }
+
     /// Why the Building breaks the constraints mirrored in `firebase/firestore.rules`,
-    /// or nil when valid. Developer-facing (used for fail-visible decoding).
+    /// or nil when valid. Developer-facing (used for fail-visible decoding). The Place ID
+    /// length is deliberately not checked here: it is a write-time bound (`isWritable`).
     var invalidReason: String? {
         if id.isEmpty { return "empty id" }
         if name.isEmpty || name.count > Self.nameMaxLength { return "invalid name" }
@@ -76,14 +95,24 @@ nonisolated struct Building: Codable, Identifiable, Equatable, Hashable, Sendabl
         if !Self.visitMinutesRange.contains(visitMinutes) { return "visitMinutes out of range" }
         if !Self.priorityRange.contains(priority) { return "priority out of range" }
         if updatedAt < createdAt { return "updatedAt before createdAt" }
+        if let applePlaceId, applePlaceId.isEmpty { return "empty applePlaceId" }
         return nil
     }
 
     var isValid: Bool { invalidReason == nil }
+
+    /// A stored Place ID longer than this version's bound. Such a Building is still read and
+    /// shown; only saving it is refused until the place is unlinked or the app updated.
+    var applePlaceIdExceedsLimit: Bool {
+        (applePlaceId?.count ?? 0) > Self.applePlaceIdMaxLength
+    }
+
+    /// Whether this version may write the Building (the rules enforce the same bound).
+    var isWritable: Bool { isValid && !applePlaceIdExceedsLimit }
 }
 
 extension Building: FirestoreDocument {
-    static let optionalFields = ["completedYear", "latitude", "longitude"]
+    static let optionalFields = ["completedYear", "latitude", "longitude", "applePlaceId"]
 }
 
 nonisolated enum BuildingPath {

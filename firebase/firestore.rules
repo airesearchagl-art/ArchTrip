@@ -3,7 +3,7 @@ rules_version = '2';
 // ArchTrip: each signed-in user can only access their own data under users/{uid}:
 // trips/** (Trips and their Events) and buildings/*. Everything else is denied by default.
 //
-// Optional model fields (Building.completedYear/latitude/longitude, Event.buildingId,
+// Optional model fields (Building.completedYear/latitude/longitude/applePlaceId, Event.buildingId,
 // Event.isAllDay, Event.checkInMinutes/checkOutMinutes, Event.pickupMinutes/returnMinutes)
 // are omitted from documents when unset (Firestore.Encoder skips nil), so they may be absent.
 service cloud.firestore {
@@ -73,7 +73,7 @@ service cloud.firestore {
       let d = request.resource.data;
       let required = ['id', 'name', 'architect', 'address', 'visitMinutes', 'priority', 'visited', 'note', 'createdAt', 'updatedAt'];
       return d.keys().hasAll(required)
-        && d.keys().hasOnly(required.concat(['completedYear', 'latitude', 'longitude']))
+        && d.keys().hasOnly(required.concat(['completedYear', 'latitude', 'longitude', 'applePlaceId']))
         && d.id == buildingId
         && d.name is string && d.name.size() > 0 && d.name.size() <= 200
         && d.architect is string && d.architect.size() <= 200
@@ -89,6 +89,11 @@ service cloud.firestore {
         && (!('latitude' in d)
           || (d.latitude is number && d.latitude >= -90 && d.latitude <= 90
             && d.longitude is number && d.longitude >= -180 && d.longitude <= 180))
+        // Optional Apple Maps Place ID (v0.2): an opaque string kept as MapKit gave it. The
+        // 128 is this project's defensive bound (Building.applePlaceIdMaxLength), not an
+        // Apple limit. It may sit beside legacy coordinates; the app then ignores those.
+        && (!('applePlaceId' in d)
+          || (d.applePlaceId is string && d.applePlaceId.size() >= 1 && d.applePlaceId.size() <= 128))
         && d.createdAt is timestamp && d.updatedAt is timestamp && d.updatedAt >= d.createdAt;
     }
 
