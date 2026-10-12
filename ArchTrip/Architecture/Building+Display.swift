@@ -62,8 +62,10 @@ extension ResolvedPlace {
 
 /// A MapKit search result, shown while the editor is open and then discarded. Only its
 /// Place ID can be kept (on a Building); the name, address and coordinates are never saved.
-struct PlaceResult: Identifiable {
-    let id = UUID()
+nonisolated struct PlaceResult: Identifiable, Hashable, Sendable {
+    let id: UUID
+    /// The search the result came from. Says nothing about whether it has an ID.
+    let kind: PlaceSearchKind
     let name: String
     let address: String
     let latitude: Double
@@ -71,9 +73,43 @@ struct PlaceResult: Identifiable {
     /// `MKMapItem.Identifier.rawValue` exactly as given, or nil when the result has none.
     let identifier: String?
     let alternateIdentifiers: Set<String>
-    let item: MKMapItem
 
-    init(_ item: MKMapItem) {
+    init(
+        kind: PlaceSearchKind,
+        name: String,
+        address: String,
+        latitude: Double,
+        longitude: Double,
+        identifier: String?,
+        alternateIdentifiers: Set<String> = [],
+        id: UUID = UUID()
+    ) {
+        self.id = id
+        self.kind = kind
+        self.name = name
+        self.address = address
+        self.latitude = latitude
+        self.longitude = longitude
+        self.identifier = identifier
+        self.alternateIdentifiers = alternateIdentifiers
+    }
+
+    var coordinate: CLLocationCoordinate2D {
+        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
+    }
+
+    /// Nil when the result can be linked to a Building. Decided by the ID alone: a point
+    /// of interest without an ID cannot be linked, an address with one can.
+    var linkIssue: PlaceLink.Issue? { PlaceLink.issue(forIdentifier: identifier) }
+
+    /// Every ID MapKit says refers to this place, for the duplicate check.
+    var allIdentifiers: Set<String> {
+        identifier.map { alternateIdentifiers.union([$0]) } ?? alternateIdentifiers
+    }
+}
+
+extension PlaceResult {
+    init(_ item: MKMapItem, kind: PlaceSearchKind) {
         let coordinate: CLLocationCoordinate2D
         let address: String?
         if #available(iOS 26.0, *) {
@@ -84,33 +120,15 @@ struct PlaceResult: Identifiable {
             coordinate = item.placemark.coordinate
             address = item.placemark.title
         }
-        self.name = item.name ?? ""
-        self.address = address ?? ""
-        self.latitude = coordinate.latitude
-        self.longitude = coordinate.longitude
-        self.identifier = item.identifier?.rawValue
-        self.alternateIdentifiers = Set(item.alternateIdentifiers.map(\.rawValue))
-        self.item = item
-    }
-
-    var coordinate: CLLocationCoordinate2D {
-        CLLocationCoordinate2D(latitude: latitude, longitude: longitude)
-    }
-
-    /// Nil when the result can be linked to a Building.
-    var linkIssue: PlaceLink.Issue? { PlaceLink.issue(forIdentifier: identifier) }
-
-    /// Every ID MapKit says refers to this place, for the duplicate check.
-    var allIdentifiers: Set<String> {
-        identifier.map { alternateIdentifiers.union([$0]) } ?? alternateIdentifiers
-    }
-
-    static func search(_ query: String) async throws -> [PlaceResult] {
-        let request = MKLocalSearch.Request()
-        request.naturalLanguageQuery = query
-        request.resultTypes = [.pointOfInterest, .address]
-        let response = try await MKLocalSearch(request: request).start()
-        return response.mapItems.map(PlaceResult.init)
+        self.init(
+            kind: kind,
+            name: item.name ?? "",
+            address: address ?? "",
+            latitude: coordinate.latitude,
+            longitude: coordinate.longitude,
+            identifier: item.identifier?.rawValue,
+            alternateIdentifiers: Set(item.alternateIdentifiers.map(\.rawValue))
+        )
     }
 }
 

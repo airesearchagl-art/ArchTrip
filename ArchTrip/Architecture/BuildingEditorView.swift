@@ -19,9 +19,8 @@ struct BuildingEditorView: View {
     @State private var applePlaceId: String?
 
     @State private var query = ""
-    @State private var results: [PlaceResult] = []
-    @State private var isSearching = false
-    @State private var searchFailed = false
+    /// Both Apple Maps searches for the query, kept only while the editor is open.
+    @State private var search = PlaceSearch(searcher: MapKitPlaceSearcher())
     /// A tapped result awaiting confirmation. Discarded by Back; nothing is kept from it.
     @State private var pendingCandidate: PlaceResult?
     /// The result linked in this editing session, only for showing its name while the
@@ -73,6 +72,8 @@ struct BuildingEditorView: View {
         )
     }
 
+    /// Why the draft cannot be saved. Independent of the place search: a Building with no
+    /// place, a failed search or no results saves like any other.
     private var issue: LocalizedStringKey? {
         if trimmed(name).isEmpty { return "Enter a name." }
         if !trimmed(yearText).isEmpty, completedYear.map(Building.completedYearRange.contains) != true {
@@ -131,7 +132,7 @@ struct BuildingEditorView: View {
                         Text("The stored address and coordinates aren't used while a place is linked. Unlinking shows them again.")
                     }
                 }
-                placeSection
+                placeSections
                 Section {
                     Stepper(value: $visitMinutes, in: Building.visitMinutesRange, step: 15) {
                         LabeledContent("Visit duration") {
@@ -156,13 +157,19 @@ struct BuildingEditorView: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
+                    Button("Cancel") {
+                        search.cancel()
+                        dismiss()
+                    }
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Save") { save() }
                         .disabled(issue != nil)
                 }
             }
+            // A changed query drops results and requests that belong to the old one.
+            .onChange(of: query) { search.queryChanged(query) }
+            .onDisappear { search.cancel() }
             .sheet(item: $pendingCandidate) { candidate in
                 PlaceCandidateView(
                     candidate: candidate,
@@ -188,10 +195,13 @@ struct BuildingEditorView: View {
 
     // MARK: Apple Maps place (v0.2)
 
-    /// Search Apple Maps and link one result by its Place ID. Nothing else from the result
+    /// Search Apple Maps and link one result by its Place ID. Nothing else from a result
     /// is copied into the Building: no name, address or coordinates (Option A / D-022).
-    /// Results without a usable ID are shown but cannot be linked.
-    private var placeSection: some View {
+    /// Points of interest and addresses are searched separately and listed apart; whether
+    /// a result can be linked depends only on its ID, not on which list it is in. The
+    /// Building can always be saved without a place.
+    @ViewBuilder
+    private var placeSections: some View {
         Section {
             if let applePlaceId {
                 HStack {
@@ -212,80 +222,112 @@ struct BuildingEditorView: View {
                     TextField("Search for a place or address", text: $query)
                         .multilineTextAlignment(.leading)
                         .submitLabel(.search)
-                        .onSubmit { Task { await search() } }
-                    if isSearching {
+                        .onSubmit { search.search(query) }
+                    if search.isSearching {
                         ProgressView()
                     } else {
-                        Button("Search") { Task { await search() } }
+                        Button("Search") { search.search(query) }
                             .disabled(trimmed(query).isEmpty)
                             .buttonStyle(.borderless)
-                    }
-                }
-                if searchFailed {
-                    Text("Search needs a network connection. Try again later.")
-                        .font(.caption)
-                        .foregroundStyle(.orange)
-                }
-                ForEach(results) { result in
-                    if let issue = result.linkIssue {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: result.name).foregroundStyle(.secondary)
-                            Text(verbatim: result.address)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            Label(issue == .noIdentifier ? "This place has no ID." : "This place's ID can't be saved.", systemImage: "nosign")
-                                .font(.caption)
-                                .foregroundStyle(.orange)
-                        }
-                        .multilineTextAlignment(.leading)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityHint(Text("Can't be linked"))
-                    } else {
-                        Button {
-                            pendingCandidate = result
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(verbatim: result.name).foregroundStyle(.primary)
-                                Text(verbatim: result.address)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .multilineTextAlignment(.leading)
-                        }
                     }
                 }
             }
         } header: {
             Text("Apple Maps place")
         } footer: {
-            if applePlaceId == nil {
-                Text("Search Apple Maps and link a place. Only its ID is saved.")
+            VStack(alignment: .leading, spacing: 4) {
+                if applePlaceId == nil {
+                    Text("Search Apple Maps and link a place. Only its ID is saved.")
+                }
+                Text("You can save the building without linking a place.")
+            }
+        }
+        if applePlaceId == nil, search.isActive {
+            resultSection(.pointOfInterest, title: "Places", empty: "No places found.", failed: "Couldn't search places.")
+            resultSection(.address, title: "Addresses", empty: "No addresses found.", failed: "Couldn't search addresses.")
+        }
+    }
+
+    /// One kind's results, with its own progress, empty and failure states, so one search
+    /// failing never hides the other's results.
+    private func resultSection(
+        _ kind: PlaceSearchKind, title: LocalizedStringKey, empty: LocalizedStringKey, failed: LocalizedStringKey
+    ) -> some View {
+        Section {
+            switch search.state(of: kind) {
+            case .idle:
+                EmptyView()
+            case .searching:
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Searching…")
+                }
+                .foregroundStyle(.secondary)
+            case .empty:
+                Text(empty)
+                    .foregroundStyle(.secondary)
+            case .failed:
+                Label(failed, systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            case .results(let results):
+                ForEach(results) { result in
+                    resultRow(result)
+                }
+            }
+        } header: {
+            Text(title)
+        }
+    }
+
+    /// A result with a usable ID opens the confirmation; one without stays visible, greyed
+    /// out, with the reason. The reason comes from the ID, never from the search kind.
+    @ViewBuilder
+    private func resultRow(_ result: PlaceResult) -> some View {
+        let title = result.name.isEmpty ? result.address : result.name
+        let subtitle = result.address == title ? "" : result.address
+        if let issue = result.linkIssue {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(verbatim: title).foregroundStyle(.secondary)
+                if !subtitle.isEmpty {
+                    Text(verbatim: subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Label(
+                    issue == .noIdentifier ? "This result can't be linked to a place." : "This place's ID can't be saved.",
+                    systemImage: "nosign"
+                )
+                .font(.caption)
+                .foregroundStyle(.orange)
+            }
+            .multilineTextAlignment(.leading)
+            .accessibilityElement(children: .combine)
+            .accessibilityHint(Text("Can't be linked"))
+        } else {
+            Button {
+                pendingCandidate = result
+            } label: {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(verbatim: title).foregroundStyle(.primary)
+                    if !subtitle.isEmpty {
+                        Text(verbatim: subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .multilineTextAlignment(.leading)
             }
         }
     }
 
-    private func search() async {
-        let text = trimmed(query)
-        guard !text.isEmpty else { return }
-        isSearching = true
-        searchFailed = false
-        defer { isSearching = false }
-        do {
-            results = try await PlaceResult.search(text)
-        } catch {
-            results = []
-            searchFailed = true
-        }
-    }
-
-    /// Links the confirmed candidate: only its Place ID enters the draft. The result list
-    /// and the query are cleared; the name, address and coordinates fields are untouched.
+    /// Links the confirmed candidate: only its Place ID enters the draft. The search is
+    /// discarded; the name, address and coordinates fields are untouched.
     private func link(_ candidate: PlaceResult) {
         guard candidate.linkIssue == nil, let identifier = candidate.identifier else { return }
         applePlaceId = identifier
         linkedCandidate = candidate
         pendingCandidate = nil
-        results = []
+        search.reset()
         query = ""
     }
 
@@ -293,6 +335,7 @@ struct BuildingEditorView: View {
         let building = draft
         guard building.isWritable, !hasSaved else { return }
         hasSaved = true
+        search.cancel()
         if let existing {
             session.updateBuilding(building, replacing: existing)
         } else {

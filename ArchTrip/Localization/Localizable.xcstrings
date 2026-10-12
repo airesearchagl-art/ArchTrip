@@ -283,6 +283,16 @@
         }
       }
     },
+    "Addresses" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "住所候補"
+          }
+        }
+      }
+    },
     "All-day" : {
       "localizations" : {
         "ja" : {
@@ -629,6 +639,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "変更を保存できませんでした"
+          }
+        }
+      }
+    },
+    "Couldn't search addresses." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "住所候補を検索できませんでした。"
+          }
+        }
+      }
+    },
+    "Couldn't search places." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "施設候補を検索できませんでした。"
           }
         }
       }
@@ -1283,6 +1313,16 @@
         }
       }
     },
+    "No addresses found." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "住所候補はありません。"
+          }
+        }
+      }
+    },
     "No buildings yet" : {
       "localizations" : {
         "ja" : {
@@ -1319,6 +1359,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "位置情報なし"
+          }
+        }
+      }
+    },
+    "No places found." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "施設候補はありません。"
           }
         }
       }
@@ -1533,6 +1583,16 @@
         }
       }
     },
+    "Places" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "施設候補"
+          }
+        }
+      }
+    },
     "Pre-check" : {
       "localizations" : {
         "ja" : {
@@ -1683,12 +1743,12 @@
         }
       }
     },
-    "Search needs a network connection. Try again later." : {
+    "Searching…" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "検索にはネットワーク接続が必要です。後でもう一度お試しください。"
+            "value" : "検索中…"
           }
         }
       }
@@ -2093,16 +2153,6 @@
         }
       }
     },
-    "This place has no ID." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "この場所にはIDがありません。"
-          }
-        }
-      }
-    },
     "This place ID can't be saved by this version. Unlink the place or update the app." : {
       "localizations" : {
         "ja" : {
@@ -2119,6 +2169,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この場所のIDは保存できません。"
+          }
+        }
+      }
+    },
+    "This result can't be linked to a place." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索結果は場所の関連付けに対応していません。"
           }
         }
       }
@@ -2389,6 +2449,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このメールアドレスとパスワードで、別のiPhoneからサインインできるようになりました。"
+          }
+        }
+      }
+    },
+    "You can save the building without linking a place." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を関連付けなくても、建築名やメモを保存できます。"
           }
         }
       }

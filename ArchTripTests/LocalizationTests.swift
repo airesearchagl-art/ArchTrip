@@ -125,7 +125,7 @@ struct LocalizationTests {
             "Unlinking shows the stored address and coordinates again.": "解除すると保存済みの住所・座標の表示に戻ります。",
             "Unlinking leaves this building without a location.": "解除すると位置情報なしになります。",
             "Link this place": "この場所を関連付ける", "Confirm place": "候補の確認", "Can't be linked": "関連付けできない候補",
-            "This place has no ID.": "この場所にはIDがありません。", "This place's ID can't be saved.": "この場所のIDは保存できません。",
+            "This place's ID can't be saved.": "この場所のIDは保存できません。",
             "Only the place's ID is saved. Its name, address and map are fetched from Apple Maps when shown.":
                 "保存するのは場所のIDだけです。名称・住所・地図は表示時にApple Mapsから取得します。",
             "The stored address and coordinates aren't used while a place is linked. Unlinking shows them again.":
@@ -147,6 +147,27 @@ struct LocalizationTests {
         #expect(String(format: waiting, locale: AppLanguage.english.locale, 1) == "1 building is waiting for its place.")
         // Search no longer sets coordinates, so the old hint is gone.
         #expect(try japanese("No location (search to set one)") == "<missing>")
+    }
+
+    /// Place search sections (points of interest / addresses), their own empty and failure
+    /// states, the no-ID reason and the note that a Building saves without a place.
+    @Test func japanesePlaceSearchStrings() throws {
+        let expected = [
+            "Places": "施設候補", "Addresses": "住所候補", "Searching…": "検索中…",
+            "No places found.": "施設候補はありません。", "No addresses found.": "住所候補はありません。",
+            "Couldn't search places.": "施設候補を検索できませんでした。",
+            "Couldn't search addresses.": "住所候補を検索できませんでした。",
+            "This result can't be linked to a place.": "この検索結果は場所の関連付けに対応していません。",
+            "You can save the building without linking a place.": "場所を関連付けなくても、建築名やメモを保存できます。",
+            "This place's ID can't be saved.": "この場所のIDは保存できません。",
+            "Search for a place or address": "場所名や住所で検索", "Search": "検索",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        // The old wording and the single network message are gone: each section reports its own outcome.
+        #expect(try japanese("This place has no ID.") == "<missing>")
+        #expect(try japanese("Search needs a network connection. Try again later.") == "<missing>")
     }
 
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
