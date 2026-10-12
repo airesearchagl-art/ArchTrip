@@ -39,6 +39,9 @@ final class AppSession {
     private(set) var saveFailure: SaveFailure?
     /// Developer diagnostics log (English, not user-facing).
     private(set) var log: [String] = []
+    /// In-memory Apple Maps place lookups for linked Buildings (v0.2). Nothing it holds
+    /// is persisted or logged; it is cleared with the user's data.
+    let places = PlaceDirectory(fetcher: MapKitPlaceFetcher())
 
     @ObservationIgnored private(set) var store: TripStore?
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
@@ -237,6 +240,7 @@ final class AppSession {
         buildings = []
         buildingFailures = []
         hasLoadedBuildings = false
+        places.clear()
     }
 
     private func applyBuildings(_ result: Result<QueryResult<Building>, Error>) {
@@ -246,6 +250,8 @@ final class AppSession {
             buildingFailures = snapshot.failures
             buildingsLoadFailed = false
             hasLoadedBuildings = true
+            // Document references: which places the stored Buildings still refer to.
+            places.updateDocumentReferences(Set(snapshot.items.compactMap(\.applePlaceId)))
             for failure in snapshot.failures {
                 append("Building \(failure.documentID) failed to decode: \(failure.reason)")
             }

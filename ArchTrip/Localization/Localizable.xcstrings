@@ -11,6 +11,34 @@
         }
       }
     },
+    "%lld buildings are waiting for their place." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "%lld件は場所を取得できていません"
+          }
+        },
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld building is waiting for its place."
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld buildings are waiting for their place."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "%lld buildings without a location are shown in the list only." : {
       "localizations" : {
         "ja" : {
@@ -121,6 +149,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld分"
+          }
+        }
+      }
+    },
+    "A building for this place already exists: %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同じ場所の建築があります：%@"
           }
         }
       }
@@ -275,6 +313,16 @@
         }
       }
     },
+    "Apple Maps place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Mapsの場所"
+          }
+        }
+      }
+    },
     "Architect" : {
       "localizations" : {
         "ja" : {
@@ -361,6 +409,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "業務"
+          }
+        }
+      }
+    },
+    "Can't be linked" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "関連付けできない候補"
           }
         }
       }
@@ -505,6 +563,16 @@
         }
       }
     },
+    "Confirm place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補の確認"
+          }
+        }
+      }
+    },
     "Confirms with the server that all changes are saved before setting up the account." : {
       "localizations" : {
         "ja" : {
@@ -521,6 +589,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接続中…"
+          }
+        }
+      }
+    },
+    "Couldn't fetch the place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を取得できませんでした"
           }
         }
       }
@@ -945,6 +1023,26 @@
         }
       }
     },
+    "Fetched at %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "取得時刻 %@"
+          }
+        }
+      }
+    },
+    "Fetching place…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を取得中…"
+          }
+        }
+      }
+    },
     "First day" : {
       "localizations" : {
         "ja" : {
@@ -1031,6 +1129,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "終了日"
+          }
+        }
+      }
+    },
+    "Link this place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所を関連付ける"
+          }
+        }
+      }
+    },
+    "Linked to Apple Maps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Mapsの場所を関連付け済み"
           }
         }
       }
@@ -1205,16 +1323,6 @@
         }
       }
     },
-    "No location (search to set one)" : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "位置情報なし（検索で設定できます）"
-          }
-        }
-      }
-    },
     "No timed events on this day" : {
       "localizations" : {
         "ja" : {
@@ -1241,6 +1349,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "中"
+          }
+        }
+      }
+    },
+    "Not found in Apple Maps" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Mapsで見つかりません"
           }
         }
       }
@@ -1301,6 +1419,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "OK"
+          }
+        }
+      }
+    },
+    "Only the place's ID is saved. Its name, address and map are fetched from Apple Maps when shown." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存するのは場所のIDだけです。名称・住所・地図は表示時にApple Mapsから取得します。"
           }
         }
       }
@@ -1371,6 +1499,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "貸出時刻"
+          }
+        }
+      }
+    },
+    "Place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所"
+          }
+        }
+      }
+    },
+    "Place not available offline" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフラインのため場所を取得できません"
           }
         }
       }
@@ -1465,6 +1613,16 @@
         }
       }
     },
+    "Retry" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再試行"
+          }
+        }
+      }
+    },
     "Return day" : {
       "localizations" : {
         "ja" : {
@@ -1501,6 +1659,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "検索"
+          }
+        }
+      }
+    },
+    "Search Apple Maps and link a place. Only its ID is saved." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Apple Mapsを検索して場所を関連付けます。保存するのはIDだけです。"
           }
         }
       }
@@ -1845,6 +2013,16 @@
         }
       }
     },
+    "The stored address and coordinates aren't used while a place is linked. Unlinking shows them again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を関連付けている間、保存済みの住所・座標は使われません。解除すると再び表示されます。"
+          }
+        }
+      }
+    },
     "This account can't be used to sign in." : {
       "localizations" : {
         "ja" : {
@@ -1911,6 +2089,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "このiPhoneのみ"
+          }
+        }
+      }
+    },
+    "This place has no ID." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所にはIDがありません。"
+          }
+        }
+      }
+    },
+    "This place ID can't be saved by this version. Unlink the place or update the app." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所IDはこのバージョンでは保存できません。場所を解除するか、アプリを更新してください。"
+          }
+        }
+      }
+    },
+    "This place's ID can't be saved." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所のIDは保存できません。"
           }
         }
       }
@@ -2031,6 +2239,46 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "建築のリンクを解除"
+          }
+        }
+      }
+    },
+    "Unlink place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "場所を解除"
+          }
+        }
+      }
+    },
+    "Unlink this place?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この場所を解除しますか？"
+          }
+        }
+      }
+    },
+    "Unlinking leaves this building without a location." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解除すると位置情報なしになります。"
+          }
+        }
+      }
+    },
+    "Unlinking shows the stored address and coordinates again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "解除すると保存済みの住所・座標の表示に戻ります。"
           }
         }
       }

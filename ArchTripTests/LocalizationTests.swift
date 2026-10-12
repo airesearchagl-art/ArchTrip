@@ -117,6 +117,38 @@ struct LocalizationTests {
         #expect(try japanese("Pickup day") == "利用開始日" && (try japanese("Return day")) == "返却日")
     }
 
+    /// v0.2: Apple Maps place linking, lookup states and the unlink confirmation.
+    @Test func japaneseApplePlaceStrings() throws {
+        let expected = [
+            "Apple Maps place": "Apple Mapsの場所", "Linked to Apple Maps": "Apple Mapsの場所を関連付け済み",
+            "Unlink place": "場所を解除", "Unlink this place?": "この場所を解除しますか？",
+            "Unlinking shows the stored address and coordinates again.": "解除すると保存済みの住所・座標の表示に戻ります。",
+            "Unlinking leaves this building without a location.": "解除すると位置情報なしになります。",
+            "Link this place": "この場所を関連付ける", "Confirm place": "候補の確認", "Can't be linked": "関連付けできない候補",
+            "This place has no ID.": "この場所にはIDがありません。", "This place's ID can't be saved.": "この場所のIDは保存できません。",
+            "Only the place's ID is saved. Its name, address and map are fetched from Apple Maps when shown.":
+                "保存するのは場所のIDだけです。名称・住所・地図は表示時にApple Mapsから取得します。",
+            "The stored address and coordinates aren't used while a place is linked. Unlinking shows them again.":
+                "場所を関連付けている間、保存済みの住所・座標は使われません。解除すると再び表示されます。",
+            "Search Apple Maps and link a place. Only its ID is saved.": "Apple Mapsを検索して場所を関連付けます。保存するのはIDだけです。",
+            "This place ID can't be saved by this version. Unlink the place or update the app.":
+                "この場所IDはこのバージョンでは保存できません。場所を解除するか、アプリを更新してください。",
+            "Fetching place…": "場所を取得中…", "Place not available offline": "オフラインのため場所を取得できません",
+            "Couldn't fetch the place": "場所を取得できませんでした", "Not found in Apple Maps": "Apple Mapsで見つかりません",
+            "Retry": "再試行", "Place": "場所", "No location": "位置情報なし",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("A building for this place already exists: %@"), "Fixture") == "同じ場所の建築があります：Fixture")
+        #expect(String(format: try japanese("Fetched at %@"), "10:00") == "取得時刻 10:00")
+        #expect(String(format: try japanese("%lld buildings are waiting for their place."), 2) == "2件は場所を取得できていません")
+        let waiting = try bundle("en").localizedString(forKey: "%lld buildings are waiting for their place.", value: nil, table: "Localizable")
+        #expect(String(format: waiting, locale: AppLanguage.english.locale, 1) == "1 building is waiting for its place.")
+        // Search no longer sets coordinates, so the old hint is gone.
+        #expect(try japanese("No location (search to set one)") == "<missing>")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")
