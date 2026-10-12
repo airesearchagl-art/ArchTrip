@@ -241,6 +241,8 @@ struct BuildingEditorView: View {
                 }
                 Text("You can save the building without linking a place.")
             }
+            // The Form aligns its fields trailing; a wrapped footer line must not follow.
+            .multilineTextAlignment(.leading)
         }
         if applePlaceId == nil, search.isActive {
             resultSection(.pointOfInterest, title: "Places", empty: "No places found.", failed: "Couldn't search places.")

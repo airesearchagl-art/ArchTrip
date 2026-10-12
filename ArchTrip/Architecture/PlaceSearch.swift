@@ -136,13 +136,27 @@ struct MapKitPlaceSearcher: PlaceSearching {
         request.naturalLanguageQuery = query
         request.resultTypes = kind == .pointOfInterest ? .pointOfInterest : .address
         let search = SearchBox(MKLocalSearch(request: request))
-        let response = try await withTaskCancellationHandler {
-            try await search.search.start()
-        } onCancel: {
-            search.cancel()
+        let response: MKLocalSearch.Response
+        do {
+            response = try await withTaskCancellationHandler {
+                try await search.search.start()
+            } onCancel: {
+                search.cancel()
+            }
+        } catch let error where Self.isNoResults(error) {
+            try Task.checkCancellation()
+            return []
         }
         try Task.checkCancellation()
         return response.mapItems.map { PlaceResult($0, kind: kind) }
+    }
+
+    /// MapKit reports a search that found nothing as `MKError.placemarkNotFound` rather than
+    /// an empty response (seen for the address search of a place name). That is "no
+    /// results", not a failed search; every other error still fails the section.
+    nonisolated static func isNoResults(_ error: Error) -> Bool {
+        let error = error as NSError
+        return error.domain == MKErrorDomain && error.code == Int(MKError.Code.placemarkNotFound.rawValue)
     }
 
     private nonisolated final class SearchBox: @unchecked Sendable {

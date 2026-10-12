@@ -1,4 +1,5 @@
 import Foundation
+import MapKit
 import Testing
 @testable import ArchTrip
 
@@ -346,5 +347,22 @@ struct PlaceSearchTests {
         #expect(unlinked.applePlaceId == nil && !unlinked.hasPlace)
         #expect(unlinked.isValid && unlinked.isWritable)
         #expect(Building(id: "b2", name: "", createdAt: date).isWritable == false, "the existing name rule still applies")
+    }
+
+    // MARK: MapKit error mapping
+
+    /// MapKit answers a search that found nothing with `MKError.placemarkNotFound`, not an
+    /// empty list. That is the empty state ("No places/addresses found"), never the failed
+    /// one; every other error, and cancellation, is left alone.
+    @Test func mapKitNotFoundIsNoResultsNotAFailure() {
+        let notFound = NSError(domain: MKErrorDomain, code: Int(MKError.Code.placemarkNotFound.rawValue))
+        #expect(MapKitPlaceSearcher.isNoResults(notFound))
+        #expect(MapKitPlaceSearcher.isNoResults(MKError(.placemarkNotFound)))
+        #expect(!MapKitPlaceSearcher.isNoResults(MKError(.serverFailure)))
+        #expect(!MapKitPlaceSearcher.isNoResults(MKError(.loadingThrottled)))
+        #expect(!MapKitPlaceSearcher.isNoResults(MKError(.unknown)))
+        #expect(!MapKitPlaceSearcher.isNoResults(URLError(.notConnectedToInternet)))
+        #expect(!MapKitPlaceSearcher.isNoResults(NSError(domain: NSURLErrorDomain, code: 4)), "the code alone is not enough")
+        #expect(!MapKitPlaceSearcher.isNoResults(CancellationError()))
     }
 }

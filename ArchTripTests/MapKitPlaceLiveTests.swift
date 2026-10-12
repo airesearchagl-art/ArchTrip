@@ -41,6 +41,17 @@ struct MapKitPlaceLiveTests {
         print("MAPKIT-EVIDENCE address search: \(addresses.count) results, \(addresses.filter { $0.identifier != nil }.count) with identifiers")
     }
 
+    /// A query nothing matches ends as an empty list for both kinds, not as an error:
+    /// MapKit's `placemarkNotFound` is mapped to "no results".
+    @Test func aQueryWithoutResultsIsEmptyNotAFailure() async throws {
+        let searcher = MapKitPlaceSearcher()
+        let pois = try await searcher.search("zzqqxx nowhere 123456", kind: .pointOfInterest)
+        let addresses = try await searcher.search("zzqqxx nowhere 123456", kind: .address)
+        #expect(pois.isEmpty)
+        #expect(addresses.isEmpty)
+        print("MAPKIT-EVIDENCE no-result query: POI \(pois.count), address \(addresses.count), no error thrown")
+    }
+
     @Test func unknownIdentifierFails() async {
         do {
             _ = try await MapKitPlaceFetcher().fetch("INOTAPLACE000000")
