@@ -3,7 +3,8 @@ import MapKit
 import Observation
 
 /// What an Apple Maps Place ID resolves to, for display only (v0.2). It is never
-/// encoded, stored or logged: it lives in `PlaceDirectory`'s memory, at most 24 hours.
+/// encoded, stored or logged: it lives in `PlaceDirectory`'s memory, at most 24 hours,
+/// and only ever enters it through a fetch.
 nonisolated struct ResolvedPlace: Equatable {
     /// The place's current ID as returned by MapKit (may differ from the stored one).
     let identifier: String
@@ -34,33 +35,48 @@ nonisolated struct ResolvedPlace: Equatable {
     }
 }
 
-/// How a fetch failed, as far as the directory needs to know to retry.
-nonisolated enum PlaceFetchFailure: Error, Hashable, Sendable {
+/// How a fetch failed, as far as the directory needs to know to retry and the UI to
+/// explain. See `MapKitPlaceFetcher.classify` for the mapping from error codes.
+nonisolated enum PlaceFetchFailure: Error, Hashable, Sendable, CaseIterable {
+    /// No connectivity (explicit "not connected" codes only).
     case offline
+    /// The network is there but the request timed out.
+    case timeout
+    /// A transport problem: TLS or certificate failure, DNS or connection failure.
+    case transport
+    /// MapKit is rate-limiting this app.
     case throttled
+    /// Apple's server failed or answered something unreadable.
     case server
     /// Apple Maps no longer resolves the ID. Never retried automatically.
     case notFound
 }
 
-/// Resolves a Place ID. Throws `PlaceFetchFailure` (or `CancellationError`); must stop
-/// when its task is cancelled. Injected so the directory is tested without MapKit.
+/// Resolves a Place ID. Throws `PlaceFetchFailure` (or `CancellationError`); should stop
+/// when its task is cancelled, but the directory does not depend on it: a result that
+/// arrives after its request was superseded is ignored.
 protocol PlaceFetching {
     func fetch(_ identifier: String) async throws -> ResolvedPlace
 }
 
 /// In-memory place lookups for linked Buildings. Two things are tracked separately:
 ///
-/// - **Screen interest** (`hold` / `retain` / `release`): how many visible views need an
-///   ID. It drives network work only: at zero, the in-flight request, the retry wait and
-///   the queue slot are cancelled.
+/// - **Screen interest** (`hold` / `retain` / `release`): which visible views need an ID.
+///   It drives network work only: at zero, the in-flight request, the retry wait and the
+///   queue slot are cancelled. Each claim is a `HoldToken`, unique for the directory's
+///   lifetime, so a release from an old screen, after a clear or after the same ID was
+///   discarded and re-created, is a no-op and never decrements a newer claim.
 /// - **Document references** (`updateDocumentReferences`): which IDs the user's stored
 ///   Buildings carry. They drive retention: a resolved value stays (until its limits) while
 ///   a document still refers to it, and is discarded when neither a document nor a view does.
 ///
-/// Values are fetched on demand, never prefetched. Each has a freshness window (refetched
-/// when shown again after it) and a hard retention limit (discarded regardless), checked
-/// on access, on foreground and by a sweep timer. Nothing here is written to disk.
+/// Every request and retry wait carries a work token from the same never-reused sequence:
+/// a completion that arrives late, after a cancel, a clear or a re-creation, changes nothing.
+///
+/// Values are fetched on demand, never prefetched and never injected from elsewhere. Each
+/// has a freshness window (refetched when shown again after it) and a hard retention limit
+/// (discarded regardless), checked on access, on foreground and by a sweep timer. Nothing
+/// here is written to disk.
 @Observable
 final class PlaceDirectory {
     struct Configuration {
@@ -74,6 +90,8 @@ final class PlaceDirectory {
         /// Automatic retry delays per failure, in order; past the end, manual only.
         var retryDelays: [PlaceFetchFailure: [TimeInterval]] = [
             .offline: [5, 20, 60, 180],
+            .timeout: [10, 30, 90],
+            .transport: [30, 90],
             .throttled: [60, 180],
             .server: [20, 60],
             .notFound: [],
@@ -91,18 +109,27 @@ final class PlaceDirectory {
         case failed(PlaceFetchFailure, attempts: Int, nextRetryAt: Date?)
     }
 
+    /// A screen's claim on a place. Release it with the token you were given; a token
+    /// that was already released, cleared away or belongs to a re-created entry does nothing.
+    struct HoldToken: Hashable, Sendable {
+        fileprivate let value: Int
+        fileprivate let identifier: String
+    }
+
     private struct Entry {
         var state: State = .idle
-        var interest = 0
+        /// Live hold tokens; screen interest is their count.
+        var holders: Set<Int> = []
         var lastAccess: Date
         var attempts = 0
         var lastAttemptAt: Date?
-        /// The in-flight fetch or the retry wait.
+        /// The in-flight fetch or the retry wait, and its token. A task whose token no longer
+        /// matches (cancelled, cleared, superseded) touches nothing when it resumes.
         var work: Task<Void, Never>?
+        var workToken: Int?
         var queued = false
-        /// Bumped whenever work is started or cancelled, so a superseded task that resumes
-        /// later touches nothing.
-        var generation = 0
+
+        var interest: Int { holders.count }
     }
 
     private var entries: [String: Entry] = [:]
@@ -110,6 +137,8 @@ final class PlaceDirectory {
     @ObservationIgnored private var pending: [String] = []
     @ObservationIgnored private var running: Set<String> = []
     @ObservationIgnored private var sweepTask: Task<Void, Never>?
+    /// One sequence for hold and work tokens, never reset (not even by `clear`).
+    @ObservationIgnored private var lastToken = 0
     @ObservationIgnored private let fetcher: any PlaceFetching
     @ObservationIgnored let configuration: Configuration
     @ObservationIgnored private let now: () -> Date
@@ -148,39 +177,41 @@ final class PlaceDirectory {
 
     // MARK: Screen interest
 
-    /// Keeps `identifier` wanted until the calling task is cancelled (`.task(id:)`).
+    /// Keeps `identifier` wanted until the calling task is cancelled (`.task(id:)`). The
+    /// claim is released with the token taken at the start, never by identifier.
     func hold(_ identifier: String) async {
-        retain(identifier)
-        defer { release(identifier) }
+        let token = retain(identifier)
+        defer { release(token) }
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(3600))
         }
     }
 
     func hold(_ identifiers: Set<String>) async {
-        for identifier in identifiers { retain(identifier) }
-        defer { for identifier in identifiers { release(identifier) } }
+        let tokens = identifiers.map(retain)
+        defer { for token in tokens { release(token) } }
         while !Task.isCancelled {
             try? await Task.sleep(for: .seconds(3600))
         }
     }
 
-    func retain(_ identifier: String) {
+    func retain(_ identifier: String) -> HoldToken {
+        let token = HoldToken(value: nextToken(), identifier: identifier)
         var entry = entries[identifier] ?? Entry(lastAccess: now())
-        entry.interest += 1
+        entry.holders.insert(token.value)
         entry.lastAccess = now()
         entries[identifier] = entry
         scheduleIfNeeded(identifier)
         enforceLimit()
+        return token
     }
 
-    func release(_ identifier: String) {
-        guard var entry = entries[identifier] else { return }
-        entry.interest = max(0, entry.interest - 1)
-        entries[identifier] = entry
+    func release(_ token: HoldToken) {
+        guard var entry = entries[token.identifier], entry.holders.remove(token.value) != nil else { return }
+        entries[token.identifier] = entry
         if entry.interest == 0 {
-            cancelWork(identifier)
-            discardIfUnreferenced(identifier)
+            cancelWork(token.identifier)
+            discardIfUnreferenced(token.identifier)
         }
     }
 
@@ -205,18 +236,6 @@ final class PlaceDirectory {
         cancelWork(identifier)
         if case .failed = entries[identifier]?.state { entries[identifier]?.state = .idle }
         enqueue(identifier)
-    }
-
-    /// A place already in hand (the candidate just linked and saved): no fetch needed now.
-    func seed(_ identifier: String, with place: ResolvedPlace) {
-        cancelWork(identifier)
-        var entry = entries[identifier] ?? Entry(lastAccess: now())
-        entry.state = .resolved(place, fetchedAt: now(), stale: false)
-        entry.attempts = 0
-        entry.lastAccess = now()
-        entries[identifier] = entry
-        enforceLimit()
-        scheduleSweep()
     }
 
     /// Back in the foreground: apply the limits, then retry each shown failure once
@@ -246,7 +265,8 @@ final class PlaceDirectory {
         scheduleSweep()
     }
 
-    /// Signed out or switched user: cancel everything and forget it all.
+    /// Signed out or switched user: cancel everything and forget it all. Tokens handed out
+    /// before this point stay invalid forever; the sequence is not reset.
     func clear() {
         for identifier in entries.keys { cancelWork(identifier) }
         sweepTask?.cancel()
@@ -279,6 +299,11 @@ final class PlaceDirectory {
 
     // MARK: Private
 
+    private func nextToken() -> Int {
+        lastToken += 1
+        return lastToken
+    }
+
     private func scheduleIfNeeded(_ identifier: String) {
         guard let entry = entries[identifier] else { return }
         switch entry.state {
@@ -296,9 +321,9 @@ final class PlaceDirectory {
                 if !stale { entries[identifier]?.state = .resolved(place, fetchedAt: fetchedAt, stale: true) }
                 if entry.work == nil { enqueue(identifier) }
             }
-        case .failed(let failure, _, let nextRetryAt):
+        case .failed(_, _, let nextRetryAt):
             if entry.work == nil, !entry.queued, let nextRetryAt {
-                waitThenRetry(identifier, failure: failure, until: nextRetryAt)
+                waitThenRetry(identifier, until: nextRetryAt)
             }
         }
     }
@@ -328,20 +353,20 @@ final class PlaceDirectory {
                 entry.state = .loading
             }
             entry.work?.cancel()
-            entry.generation += 1
+            let token = nextToken()
+            entry.workToken = token
             entry.lastAttemptAt = now()
             entry.attempts += 1
-            let generation = entry.generation
             running.insert(identifier)
             entries[identifier] = entry
             fetchCount += 1
             entries[identifier]?.work = Task { [weak self] in
-                await self?.perform(identifier, generation: generation)
+                await self?.perform(identifier, token: token)
             }
         }
     }
 
-    private func perform(_ identifier: String, generation: Int) async {
+    private func perform(_ identifier: String, token: Int) async {
         var outcome: Result<ResolvedPlace, PlaceFetchFailure>?
         do {
             let place = try await fetcher.fetch(identifier)
@@ -353,10 +378,12 @@ final class PlaceDirectory {
         } catch {
             outcome = .failure(.server)
         }
-        // Superseded (cancelled, cleared or restarted): `cancelWork` already did the bookkeeping.
-        guard let entry = entries[identifier], entry.generation == generation else { return }
+        // Superseded (cancelled, cleared, re-created or restarted): `cancelWork` already did
+        // the bookkeeping, and this result belongs to nobody.
+        guard let entry = entries[identifier], entry.workToken == token else { return }
         running.remove(identifier)
         entries[identifier]?.work = nil
+        entries[identifier]?.workToken = nil
         switch outcome {
         case .success(let place):
             entries[identifier]?.state = .resolved(place, fetchedAt: now(), stale: false)
@@ -382,15 +409,15 @@ final class PlaceDirectory {
             entries[identifier]?.state = .failed(failure, attempts: entry.attempts, nextRetryAt: nextRetryAt)
         }
         if let nextRetryAt, entry.interest > 0 {
-            waitThenRetry(identifier, failure: failure, until: nextRetryAt)
+            waitThenRetry(identifier, until: nextRetryAt)
         }
     }
 
-    private func waitThenRetry(_ identifier: String, failure: PlaceFetchFailure, until deadline: Date) {
+    private func waitThenRetry(_ identifier: String, until deadline: Date) {
         guard var entry = entries[identifier] else { return }
         entry.work?.cancel()
-        entry.generation += 1
-        let generation = entry.generation
+        let token = nextToken()
+        entry.workToken = token
         entries[identifier] = entry
         let delay = max(0, deadline.timeIntervalSince(now()))
         entries[identifier]?.work = Task { [weak self] in
@@ -400,19 +427,21 @@ final class PlaceDirectory {
             } catch {
                 return
             }
-            guard let entry = entries[identifier], entry.generation == generation else { return }
+            guard let entry = entries[identifier], entry.workToken == token else { return }
             entries[identifier]?.work = nil
+            entries[identifier]?.workToken = nil
             enqueue(identifier)
         }
     }
 
     /// Stops all network work for `identifier`: the request, the retry wait, the queue slot.
+    /// The work token is dropped, so a late completion of that work is ignored.
     private func cancelWork(_ identifier: String) {
         guard var entry = entries[identifier] else { return }
         entry.work?.cancel()
         entry.work = nil
+        entry.workToken = nil
         entry.queued = false
-        entry.generation += 1
         pending.removeAll { $0 == identifier }
         let wasRunning = running.remove(identifier) != nil
         if case .loading = entry.state { entry.state = .idle }
@@ -485,19 +514,63 @@ struct MapKitPlaceFetcher: PlaceFetching {
         }
     }
 
-    /// Network errors are "offline"; MapKit throttling and "not found" keep their meaning;
-    /// anything else is a server failure. Which code MapKit uses offline is not documented.
+    /// Classifies by error code, following `NSUnderlyingErrorKey` so a MapKit wrapper around
+    /// a URL or POSIX error is read by its cause:
+    ///
+    /// | Source | Codes | Failure |
+    /// |---|---|---|
+    /// | MKErrorDomain | loadingThrottled | throttled |
+    /// | MKErrorDomain | placemarkNotFound | notFound |
+    /// | MKErrorDomain | serverFailure, decodingFailed, unknown (no cause) | server |
+    /// | NSURLErrorDomain | notConnectedToInternet, networkConnectionLost, dataNotAllowed, internationalRoamingOff, callIsActive | offline |
+    /// | NSURLErrorDomain | timedOut | timeout |
+    /// | NSURLErrorDomain | TLS / certificate codes, DNS, cannotFindHost, cannotConnectToHost, other URL errors | transport |
+    /// | NSPOSIXErrorDomain | ENETDOWN, ENETUNREACH, EHOSTUNREACH, EHOSTDOWN | offline |
+    /// | NSPOSIXErrorDomain | ETIMEDOUT | timeout |
+    /// | NSPOSIXErrorDomain | other | transport |
+    /// | anything else | | server |
     static func classify(_ error: Error) -> PlaceFetchFailure {
-        let error = error as NSError
-        if error.domain == NSURLErrorDomain { return .offline }
-        if error.domain == MKErrorDomain {
-            switch MKError.Code(rawValue: UInt(error.code)) {
-            case .loadingThrottled: return .throttled
-            case .placemarkNotFound: return .notFound
-            default: return .server
+        var current: NSError? = error as NSError
+        var mapKitVerdict: PlaceFetchFailure?
+        while let error = current {
+            switch error.domain {
+            case MKErrorDomain:
+                switch MKError.Code(rawValue: UInt(error.code)) {
+                case .loadingThrottled: return .throttled
+                case .placemarkNotFound: return .notFound
+                default: mapKitVerdict = mapKitVerdict ?? .server
+                }
+            case NSURLErrorDomain:
+                return classifyURLError(error.code)
+            case NSPOSIXErrorDomain:
+                return classifyPOSIXError(error.code)
+            default:
+                break
             }
+            current = error.userInfo[NSUnderlyingErrorKey] as? NSError
         }
-        return .server
+        return mapKitVerdict ?? .server
+    }
+
+    private static func classifyURLError(_ code: Int) -> PlaceFetchFailure {
+        switch URLError.Code(rawValue: code) {
+        case .notConnectedToInternet, .networkConnectionLost, .dataNotAllowed, .internationalRoamingOff, .callIsActive:
+            return .offline
+        case .timedOut:
+            return .timeout
+        default:
+            // TLS and certificate failures, DNS lookup failures, cannotFindHost,
+            // cannotConnectToHost, bad server responses and every other URL error.
+            return .transport
+        }
+    }
+
+    private static func classifyPOSIXError(_ code: Int) -> PlaceFetchFailure {
+        switch Int32(code) {
+        case ENETDOWN, ENETUNREACH, EHOSTUNREACH, EHOSTDOWN: .offline
+        case ETIMEDOUT: .timeout
+        default: .transport
+        }
     }
 
     /// Lets the cancellation handler (a nonisolated, Sendable context) reach the request.

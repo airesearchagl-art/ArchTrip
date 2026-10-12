@@ -105,11 +105,6 @@ struct PlaceResult: Identifiable {
         identifier.map { alternateIdentifiers.union([$0]) } ?? alternateIdentifiers
     }
 
-    /// The result as a display value, to seed the directory once the link is saved.
-    var resolvedPlace: ResolvedPlace? {
-        identifier.map { ResolvedPlace(item, requestedIdentifier: $0) }
-    }
-
     static func search(_ query: String) async throws -> [PlaceResult] {
         let request = MKLocalSearch.Request()
         request.naturalLanguageQuery = query
@@ -164,7 +159,7 @@ struct PlaceStatusLabel: View {
         case .failed(.notFound, _, _):
             Label("Not found in Apple Maps", systemImage: "mappin.slash")
                 .foregroundStyle(.orange)
-        case .failed(.throttled, _, _), .failed(.server, _, _):
+        case .failed(.timeout, _, _), .failed(.transport, _, _), .failed(.throttled, _, _), .failed(.server, _, _):
             Label("Couldn't fetch the place", systemImage: "exclamationmark.triangle")
                 .foregroundStyle(.orange)
         }

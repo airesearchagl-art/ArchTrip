@@ -24,8 +24,9 @@ struct BuildingEditorView: View {
     @State private var searchFailed = false
     /// A tapped result awaiting confirmation. Discarded by Back; nothing is kept from it.
     @State private var pendingCandidate: PlaceResult?
-    /// The result linked in this editing session, for the transient name and for seeding
-    /// the directory after a successful save. Dropped with the editor on Cancel.
+    /// The result linked in this editing session, only for showing its name while the
+    /// editor is open. It never enters the directory: after a save, the place is fetched
+    /// again like any other, once the stored Building is shown. Dropped with the editor.
     @State private var linkedCandidate: PlaceResult?
     @State private var confirmingUnlink = false
     @State private var hasSaved = false
@@ -297,11 +298,8 @@ struct BuildingEditorView: View {
         } else {
             session.createBuilding(building)
         }
-        // The place is already in hand: no lookup needed when the list shows it.
-        if let identifier = building.applePlaceId, let candidate = linkedCandidate,
-           candidate.identifier == identifier, let place = candidate.resolvedPlace {
-            session.places.seed(identifier, with: place)
-        }
+        // Nothing from the candidate is cached here: the server may still reject the write,
+        // so the place is fetched normally once the stored Building appears on screen.
         dismiss()
     }
 }
