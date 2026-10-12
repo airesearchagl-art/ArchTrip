@@ -24,17 +24,32 @@ struct MapKitPlaceLiveTests {
         print("MAPKIT-EVIDENCE sample id resolved: identifier length \(place.identifier.count), alternates \(place.alternateIdentifiers.count), hasName \(place.name != nil), hasAddress \(place.address != nil)")
     }
 
-    /// Point-of-interest results carry identifiers; address results are reported only.
+    /// The point-of-interest search returns results with identifiers; the address search
+    /// is reported only, since whether its results carry identifiers is not assumed.
     @Test func searchResultsCarryIdentifiers() async throws {
-        let pois = try await PlaceResult.search("Apple Park Visitor Center")
+        let searcher = MapKitPlaceSearcher()
+        let pois = try await searcher.search("Apple Park Visitor Center", kind: .pointOfInterest)
         #expect(!pois.isEmpty)
+        #expect(pois.allSatisfy { $0.kind == .pointOfInterest })
         let withID = pois.filter { $0.identifier != nil }
         #expect(!withID.isEmpty)
         #expect(withID.allSatisfy { $0.linkIssue == nil })
         print("MAPKIT-EVIDENCE POI search: \(pois.count) results, \(withID.count) with identifiers, longest \(pois.compactMap { $0.identifier?.count }.max() ?? 0)")
 
-        let addresses = try await PlaceResult.search("1 Apple Park Way, Cupertino")
+        let addresses = try await searcher.search("1 Apple Park Way, Cupertino", kind: .address)
+        #expect(addresses.allSatisfy { $0.kind == .address })
         print("MAPKIT-EVIDENCE address search: \(addresses.count) results, \(addresses.filter { $0.identifier != nil }.count) with identifiers")
+    }
+
+    /// A query nothing matches ends as an empty list for both kinds, not as an error:
+    /// MapKit's `placemarkNotFound` is mapped to "no results".
+    @Test func aQueryWithoutResultsIsEmptyNotAFailure() async throws {
+        let searcher = MapKitPlaceSearcher()
+        let pois = try await searcher.search("zzqqxx nowhere 123456", kind: .pointOfInterest)
+        let addresses = try await searcher.search("zzqqxx nowhere 123456", kind: .address)
+        #expect(pois.isEmpty)
+        #expect(addresses.isEmpty)
+        print("MAPKIT-EVIDENCE no-result query: POI \(pois.count), address \(addresses.count), no error thrown")
     }
 
     @Test func unknownIdentifierFails() async {
