@@ -170,6 +170,54 @@ struct LocalizationTests {
         #expect(try japanese("Search needs a network connection. Try again later.") == "<missing>")
     }
 
+    /// RF-03: the Trip deletion screen, its blockers and its failure wording.
+    @Test func japaneseTripDeletionStrings() throws {
+        let expected = [
+            "Delete Trip": "出張を削除", "Delete this trip?": "この出張を削除しますか？",
+            "What will be deleted": "削除される項目", "This can't be undone.": "この操作は取り消せません。",
+            "Buildings are kept. They're shared across trips.": "建築は削除されません。建築は出張をまたいで共有されています。",
+            "Checking the server…": "サーバーの内容を確認中…", "Check again": "再確認", "Deleted": "削除しました",
+            "Not in sync with the server (offline, or changes not sent yet). Check the connection and try again once synced.": "サーバーと同期できていません（オフラインまたは未送信の変更）。接続を確認し、同期が終わってからやり直してください。",
+            "Can't delete while offline. Connect and try again.": "オフラインのため削除できません。接続してからやり直してください。",
+            "The server rejected the deletion.": "サーバーが削除を拒否しました。",
+            "No reply from the server. The deletion may still complete once connected. Check again.":
+                "サーバーの応答がありません。接続後に削除が完了することがあります。再確認してください。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("%lld events"), 3) == "予定 3件")
+        #expect(String(format: try japanese("Delete trip and %lld events"), 3) == "出張と予定3件を削除")
+        #expect(String(format: try japanese("Deleting… %lld of %lld"), 1, 3) == "削除中… 1 / 3")
+        #expect(String(format: try japanese("%lld of them can't be read and will be deleted too."), 1) == "うち1件は読み取れない予定ですが、同じく削除されます。")
+        #expect(String(format: try japanese("This trip has too many events to delete here (%lld)."), 2_001) == "予定が多すぎるため、この画面では削除できません（2001件）。")
+        #expect(try japanese("Deletion stopped after %lld events. The trip stays until all its events are gone.") == "<missing>")
+        #expect(try japanese("Deletion stopped.") == "削除を中断しました。")
+        #expect(String(format: try japanese("No reply from the server. A sent batch (%lld events and the trip) may still apply once connected."), 101) == "サーバーの応答がありません。送信済みの削除（予定101件と出張）は接続後に適用されることがあります。")
+        #expect(String(format: try japanese("No reply from the server. A sent batch (%lld events) may still apply once connected."), 450) == "サーバーの応答がありません。送信済みの削除（予定450件）は接続後に適用されることがあります。")
+        #expect(try japanese("The result couldn't be verified on the server. Check again before assuming anything was deleted.") == "削除結果をサーバーで確認できませんでした。再確認するまで削除済みとみなさないでください。")
+        #expect(String(format: try japanese("%lld events and the trip are still there after verification."), 5) == "確認後も予定5件と出張が残っています。")
+        #expect(String(format: try japanese("%lld events are still there after verification."), 5) == "確認後も予定5件が残っています。")
+        #expect(String(format: try japanese("Confirmed deleted: %lld events and the trip"), 900) == "削除確認済み：予定900件と出張")
+        #expect(String(format: try japanese("Confirmed deleted: %lld events"), 450) == "削除確認済み：予定450件")
+        #expect(try japanese("The trip is deleted. Remaining events are deleted after checking again.") == "<missing>")
+        #expect(try japanese("The trip is still there.") == "<missing>")
+        #expect(try japanese("Whether the trip is deleted is not confirmed.") == "出張の削除は未確定です。")
+        #expect(try japanese("The trip is no longer on the server (verified).") == "出張はサーバー上にありません（確認済み）。")
+        #expect(try japanese("The trip is still on the server (last listing).") == "出張はサーバーに残っています（最終確認時点）。")
+        #expect(try japanese("The server acknowledged the trip's deletion. Remaining events are deleted after checking again.") == "出張の削除はサーバーが確認済みです。残った予定は再確認後に削除できます。")
+        #expect(String(format: try japanese("Delete the %lld remaining events"), 1) == "残った予定1件を削除")
+        #expect(try japanese("Trip (deletion in progress)") == "出張（削除を再開）")
+        #expect(try japanese("Deletions to finish") == "削除が未完了の出張")
+        #expect(String(format: try japanese("Deletion of trip %@… stopped before the server confirmed it."), "abcd1234") == "出張 abcd1234… の削除はサーバー確認の前に止まりました。")
+        #expect(try japanese("Resume") == "再開")
+        #expect(try japanese("This deletion is kept in the trip list until the server confirms it, also after a restart.") == "この削除はサーバーが確認するまで出張一覧に残ります（再起動後も）。")
+        #expect(try japanese("Check again waits for queued writes, then lists the server; only what is still there can be deleted.") == "再確認では未送信の書込みの完了を待ってからサーバーを再確認し、残っているものだけを削除できます。")
+        let one = try bundle("en").localizedString(forKey: "Delete trip and %lld events", value: nil, table: "Localizable")
+        #expect(String(format: one, locale: AppLanguage.english.locale, 1) == "Delete trip and 1 event")
+        #expect(String(format: one, locale: AppLanguage.english.locale, 2) == "Delete trip and 2 events")
+    }
+
     /// Travel MVP: the travel screen, its point picker, results and failures.
     @Test func japaneseTravelStrings() throws {
         let expected = [

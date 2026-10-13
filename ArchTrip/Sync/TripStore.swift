@@ -7,7 +7,7 @@ import Foundation
 /// Queries are deliberately unordered: Firestore's `order(by:)` excludes documents
 /// missing the ordered field, which would hide malformed documents instead of
 /// reporting them. Callers sort on the client.
-final class TripStore {
+final class TripStore: TripDeleting {
     private let db: Firestore
 
     init(db: Firestore = Firestore.firestore()) {
@@ -140,6 +140,37 @@ final class TripStore {
             eventIDsByTrip: eventIDsByTrip,
             buildingIDs: Set(buildings.documents.map(\.documentID))
         )
+    }
+
+    // MARK: Trip deletion (RF-03)
+
+    /// The Trip and every Event document under it, read from the server only. Documents
+    /// that fail to decode are listed as unreadable; they are deleted with the Trip.
+    func inventory(uid: String, tripID: String) async throws -> TripDeletionInventory {
+        let trip = try await trips(uid: uid).document(tripID).getDocument(source: .server)
+        let snapshot = try await events(uid: uid, tripID: tripID).getDocuments(source: .server)
+        let decoded = Self.result(snapshot, as: Event.self, validate: Self.eventValidator(tripID: tripID))
+        return TripDeletionInventory(
+            tripExists: trip.exists,
+            eventIDs: snapshot.documents.map(\.documentID),
+            unreadableEventIDs: decoded.failures.map(\.documentID)
+        )
+    }
+
+    /// One atomic batch: the given Events and, when `andTrip`, the Trip document. Returns
+    /// once the server acknowledges; throws `AccountError.timedOut` at the deadline (the
+    /// batch then stays queued locally and may still apply once connected).
+    func delete(eventIDs: [String], andTrip: Bool, uid: String, tripID: String, timeout: Duration) async throws {
+        let batch = db.batch()
+        for eventID in eventIDs {
+            batch.deleteDocument(events(uid: uid, tripID: tripID).document(eventID))
+        }
+        if andTrip {
+            batch.deleteDocument(trips(uid: uid).document(tripID))
+        }
+        try await BoundedWait.run(timeout: timeout) { done in
+            batch.commit(completion: done)
+        }
     }
 
     // MARK: Network
