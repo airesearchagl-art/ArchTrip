@@ -454,7 +454,8 @@ struct TravelView: View {
         if case .linkedPlace(let placeID, _, _) = endpoint(side), let item = session.places.place(for: placeID)?.mapItem {
             return item
         }
-        return point(side).map(MapKitTravelRouter.mapItem(for:))
+        guard let point = point(side) else { return nil }
+        return MapKitTravelRouter.mapItem(for: point)
     }
 }
 
