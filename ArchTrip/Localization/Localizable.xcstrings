@@ -67,6 +67,34 @@
         }
       }
     },
+    "%lld events" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld event"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "%lld events"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定 %lld件"
+          }
+        }
+      }
+    },
     "%lld events outside the new dates" : {
       "localizations" : {
         "ja" : {
@@ -149,6 +177,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "%lld分"
+          }
+        }
+      }
+    },
+    "%lld of them can't be read and will be deleted too." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "うち%lld件は読み取れない予定ですが、同じく削除されます。"
           }
         }
       }
@@ -403,6 +441,16 @@
         }
       }
     },
+    "Buildings are kept. They're shared across trips." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築は削除されません。建築は出張をまたいで共有されています。"
+          }
+        }
+      }
+    },
     "Buildings retained" : {
       "localizations" : {
         "ja" : {
@@ -433,6 +481,16 @@
         }
       }
     },
+    "Can't delete while offline. Connect and try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "オフラインのため削除できません。接続してからやり直してください。"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "ja" : {
@@ -449,6 +507,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "車"
+          }
+        }
+      }
+    },
+    "Changes haven't reached the server yet. Wait for sync, then try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "未同期の変更があります。同期が終わってからやり直してください。"
+          }
+        }
+      }
+    },
+    "Check again" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再確認"
           }
         }
       }
@@ -519,6 +597,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "チェックアウト時刻"
+          }
+        }
+      }
+    },
+    "Checking the server…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーの内容を確認中…"
           }
         }
       }
@@ -599,6 +687,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "接続中…"
+          }
+        }
+      }
+    },
+    "Couldn't delete (%@ %lld)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除できませんでした（%@ %lld）。"
           }
         }
       }
@@ -749,6 +847,84 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この予定を削除しますか？"
+          }
+        }
+      }
+    },
+    "Delete this trip?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この出張を削除しますか？"
+          }
+        }
+      }
+    },
+    "Delete Trip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張を削除"
+          }
+        }
+      }
+    },
+    "Delete trip and %lld events" : {
+      "localizations" : {
+        "en" : {
+          "variations" : {
+            "plural" : {
+              "one" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete trip and %lld event"
+                }
+              },
+              "other" : {
+                "stringUnit" : {
+                  "state" : "translated",
+                  "value" : "Delete trip and %lld events"
+                }
+              }
+            }
+          }
+        },
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張と予定%lld件を削除"
+          }
+        }
+      }
+    },
+    "Deleted" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除しました"
+          }
+        }
+      }
+    },
+    "Deleting… %lld of %lld" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除中… %lld / %lld"
+          }
+        }
+      }
+    },
+    "Deletion stopped after %lld events. The trip stays until all its events are gone." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定%lld件を削除した時点で中断しました。出張は予定がすべて消えるまで残ります。"
           }
         }
       }
@@ -1369,6 +1545,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "施設候補はありません。"
+          }
+        }
+      }
+    },
+    "No reply from the server. The deletion may still complete once connected. Check again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーの応答がありません。接続後に削除が完了することがあります。再確認してください。"
           }
         }
       }
@@ -2053,6 +2239,16 @@
         }
       }
     },
+    "The server rejected the deletion." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーが削除を拒否しました。"
+          }
+        }
+      }
+    },
     "The sign-in details were added, but a check did not pass. Nothing was undone automatically. Do not retry; report this state for review." : {
       "localizations" : {
         "ja" : {
@@ -2123,6 +2319,16 @@
         }
       }
     },
+    "This can't be undone." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この操作は取り消せません。"
+          }
+        }
+      }
+    },
     "This changes this anonymous account into an account for syncing between devices. Your current data is kept; only sign-in details are added." : {
       "localizations" : {
         "ja" : {
@@ -2179,6 +2385,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この検索結果は場所の関連付けに対応していません。"
+          }
+        }
+      }
+    },
+    "This trip has too many events to delete here (%lld)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定が多すぎるため、この画面では削除できません（%lld件）。"
           }
         }
       }
@@ -2439,6 +2655,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "徒歩"
+          }
+        }
+      }
+    },
+    "What will be deleted" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除される項目"
           }
         }
       }

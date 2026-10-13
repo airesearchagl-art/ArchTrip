@@ -170,6 +170,33 @@ struct LocalizationTests {
         #expect(try japanese("Search needs a network connection. Try again later.") == "<missing>")
     }
 
+    /// RF-03: the Trip deletion screen, its blockers and its failure wording.
+    @Test func japaneseTripDeletionStrings() throws {
+        let expected = [
+            "Delete Trip": "出張を削除", "Delete this trip?": "この出張を削除しますか？",
+            "What will be deleted": "削除される項目", "This can't be undone.": "この操作は取り消せません。",
+            "Buildings are kept. They're shared across trips.": "建築は削除されません。建築は出張をまたいで共有されています。",
+            "Checking the server…": "サーバーの内容を確認中…", "Check again": "再確認", "Deleted": "削除しました",
+            "Changes haven't reached the server yet. Wait for sync, then try again.": "未同期の変更があります。同期が終わってからやり直してください。",
+            "Can't delete while offline. Connect and try again.": "オフラインのため削除できません。接続してからやり直してください。",
+            "The server rejected the deletion.": "サーバーが削除を拒否しました。",
+            "No reply from the server. The deletion may still complete once connected. Check again.":
+                "サーバーの応答がありません。接続後に削除が完了することがあります。再確認してください。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        #expect(String(format: try japanese("%lld events"), 3) == "予定 3件")
+        #expect(String(format: try japanese("Delete trip and %lld events"), 3) == "出張と予定3件を削除")
+        #expect(String(format: try japanese("Deleting… %lld of %lld"), 1, 3) == "削除中… 1 / 3")
+        #expect(String(format: try japanese("%lld of them can't be read and will be deleted too."), 1) == "うち1件は読み取れない予定ですが、同じく削除されます。")
+        #expect(String(format: try japanese("This trip has too many events to delete here (%lld)."), 2_001) == "予定が多すぎるため、この画面では削除できません（2001件）。")
+        #expect(String(format: try japanese("Deletion stopped after %lld events. The trip stays until all its events are gone."), 450) == "予定450件を削除した時点で中断しました。出張は予定がすべて消えるまで残ります。")
+        let one = try bundle("en").localizedString(forKey: "Delete trip and %lld events", value: nil, table: "Localizable")
+        #expect(String(format: one, locale: AppLanguage.english.locale, 1) == "Delete trip and 1 event")
+        #expect(String(format: one, locale: AppLanguage.english.locale, 2) == "Delete trip and 2 events")
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")

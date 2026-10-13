@@ -173,6 +173,12 @@ final class AppSession {
         saveFailure = nil
     }
 
+    /// RF-03: the deletion screen reports its outcome here (a Trip ID prefix and counts,
+    /// never titles). The writes themselves go through `TripStore` as one batch each.
+    func logTripDeletion(_ line: String) {
+        append("Trip deletion \(line)")
+    }
+
     // MARK: Diagnostics
 
     func readTripsForDiagnostics() async {
