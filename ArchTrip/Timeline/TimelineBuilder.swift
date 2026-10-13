@@ -191,6 +191,25 @@ nonisolated enum TimelineBuilder {
             .sorted(by: chronological)
     }
 
+    /// The Events a Travel / Free Time gap at `index` lies between: before it, the Event
+    /// whose end the gap starts at (else the nearest one); after it, the Event whose start
+    /// the gap ends at (else the nearest one). Markers, the current time and the other
+    /// part of a split gap are skipped. Nil for anything but a gap with an Event on both sides.
+    static func gapEndpoints(at index: Int, in items: [TimelineItem]) -> (before: Event, after: Event)? {
+        guard items.indices.contains(index), case .freeTime(let start, let end) = items[index] else { return nil }
+        var earlier: [Event] = []
+        for item in items[..<index] {
+            if case .event(let event) = item { earlier.append(event) }
+        }
+        var later: [Event] = []
+        for item in items[(index + 1)...] {
+            if case .event(let event) = item { later.append(event) }
+        }
+        guard let before = earlier.last(where: { $0.endDate == start }) ?? earlier.last,
+              let after = later.first(where: { $0.startDate == end }) ?? later.first else { return nil }
+        return (before, after)
+    }
+
     static func chronological(_ lhs: Event, _ rhs: Event) -> Bool {
         if lhs.startDate != rhs.startDate { return lhs.startDate < rhs.startDate }
         if lhs.endDate != rhs.endDate { return lhs.endDate < rhs.endDate }

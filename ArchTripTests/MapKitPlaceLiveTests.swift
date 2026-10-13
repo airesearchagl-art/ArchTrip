@@ -52,6 +52,33 @@ struct MapKitPlaceLiveTests {
         print("MAPKIT-EVIDENCE no-result query: POI \(pois.count), address \(addresses.count), no error thrown")
     }
 
+    /// Travel MVP: a driving route between two public points on Apple's campus comes back
+    /// with a path and a time; the transit estimate is reported as available or not here.
+    @Test func drivingRouteAndTransitEstimateBetweenPublicPoints() async throws {
+        let router = MapKitTravelRouter()
+        let from = TravelPoint(name: "Fixture A", latitude: 37.3349, longitude: -122.0090, placeID: nil)
+        let to = TravelPoint(name: "Fixture B", latitude: 37.3318, longitude: -122.0312, placeID: nil)
+        let anchor = TravelAnchor.departAt(Date().addingTimeInterval(3_600))
+        let route = try await router.route(from: from, to: to, mode: .car, anchor: anchor)
+        #expect(route.mode == .car && route.expectedTravelTime > 0)
+        if case .route(let distance, let steps, let path) = route.kind {
+            #expect(distance > 0 && path.count > 1)
+            print("MAPKIT-EVIDENCE car route: seconds>0=\(route.expectedTravelTime > 0) distance>0=\(distance > 0) steps=\(steps.count) pathPoints=\(path.count)")
+        } else {
+            Issue.record("car gives a route, not an ETA")
+        }
+        do {
+            let eta = try await router.route(from: from, to: to, mode: .transit, anchor: anchor)
+            if case .eta = eta.kind {
+                print("MAPKIT-EVIDENCE transit ETA: seconds>0=\(eta.expectedTravelTime > 0) hasDeparture=\(eta.expectedDeparture != nil) hasArrival=\(eta.expectedArrival != nil)")
+            } else {
+                Issue.record("transit gives an ETA, not a route")
+            }
+        } catch {
+            print("MAPKIT-EVIDENCE transit ETA not available for these points: \(MapKitPlaceFetcher.classify(error))")
+        }
+    }
+
     @Test func unknownIdentifierFails() async {
         do {
             _ = try await MapKitPlaceFetcher().fetch("INOTAPLACE000000")

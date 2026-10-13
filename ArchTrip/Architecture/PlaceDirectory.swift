@@ -520,7 +520,7 @@ struct MapKitPlaceFetcher: PlaceFetching {
     /// | Source | Codes | Failure |
     /// |---|---|---|
     /// | MKErrorDomain | loadingThrottled | throttled |
-    /// | MKErrorDomain | placemarkNotFound | notFound |
+    /// | MKErrorDomain | placemarkNotFound, directionsNotFound (travel search) | notFound |
     /// | MKErrorDomain | serverFailure, decodingFailed, unknown (no cause) | server |
     /// | NSURLErrorDomain | notConnectedToInternet, networkConnectionLost, dataNotAllowed, internationalRoamingOff, callIsActive | offline |
     /// | NSURLErrorDomain | timedOut | timeout |
@@ -537,7 +537,7 @@ struct MapKitPlaceFetcher: PlaceFetching {
             case MKErrorDomain:
                 switch MKError.Code(rawValue: UInt(error.code)) {
                 case .loadingThrottled: return .throttled
-                case .placemarkNotFound: return .notFound
+                case .placemarkNotFound, .directionsNotFound: return .notFound
                 default: mapKitVerdict = mapKitVerdict ?? .server
                 }
             case NSURLErrorDomain:

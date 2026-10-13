@@ -170,6 +170,31 @@ struct LocalizationTests {
         #expect(try japanese("Search needs a network connection. Try again later.") == "<missing>")
     }
 
+    /// Travel MVP: the travel screen, its point picker, results and failures.
+    @Test func japaneseTravelStrings() throws {
+        let expected = [
+            "Travel between events": "予定間の移動", "From event": "出発側の予定", "To event": "到着側の予定",
+            "Points": "地点", "From": "出発地", "To": "到着地", "Pick a candidate": "候補を選ぶ",
+            "Pick another point for this search": "この検索では別の地点を使う", "Change": "変更",
+            "No usable point yet. Pick a candidate for this search.": "地点が未確定です。この検索で使う候補を選んでください。",
+            "Only for this search. Not saved.": "この検索にだけ使われます。保存されません。",
+            "Mode and time": "手段と時刻", "Transit": "公共交通", "Depart at": "出発時刻", "Arrive by": "到着時刻",
+            "Search route": "経路を検索", "Searching route…": "経路を検索中…", "Result": "結果",
+            "Shown here only. Nothing from this result is saved to the event or the server.": "この画面の表示のみです。結果は予定にもサーバーにも保存されません。",
+            "From Apple Maps, for the time chosen above. Not saved.": "上で選んだ時刻に対する Apple Maps の結果です。保存されません。",
+            "Estimated travel time": "所要時間（見込み）", "Distance": "距離", "Departure": "出発", "Arrival": "到着", "Directions": "経路案内",
+            "Transit: Apple Maps gives an estimated time only. Open Apple Maps for lines and times.": "公共交通は所要時間の見込みのみです。路線や時刻は Apple Maps で確認してください。",
+            "The inputs changed. Search again.": "条件が変わりました。再検索してください。",
+            "No route found.": "経路が見つかりません。", "Route search needs a network connection.": "経路検索にはネットワーク接続が必要です。",
+            "The route search timed out.": "経路検索がタイムアウトしました。", "Couldn't search the route.": "経路を検索できませんでした。",
+            "Pick the place for this search": "この検索で使う地点", "Shows travel options between the events": "予定間の移動時間と経路を調べます",
+            "Car": "車", "Walk": "徒歩", "Open in Apple Maps": "Apple Mapsで開く",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+    }
+
     @Test func japaneseFormatStringsKeepSpecifiers() throws {
         #expect(String(format: try japanese("%lld hr %lld min"), 2, 30) == "2時間30分")
         #expect(String(format: try japanese("%lld min"), 45) == "45分")
