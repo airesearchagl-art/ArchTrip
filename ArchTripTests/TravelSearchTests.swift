@@ -17,6 +17,9 @@ struct TravelSearchTests {
 
         var outcomes: [Result<TravelResult, Error>] = []
         var hang = false
+        /// A hung reply that does not react to cancellation at all (a router that never
+        /// returns): only a release ends it.
+        var ignoresCancellation = false
         private(set) var calls: [Call] = []
         private var hung: [Hang] = []
 
@@ -47,12 +50,16 @@ struct TravelSearchTests {
             if hang {
                 let hang = Hang()
                 hung.append(hang)
-                await withTaskCancellationHandler {
+                if ignoresCancellation {
                     await withCheckedContinuation { hang.arm($0) }
-                } onCancel: {
-                    hang.resume()
+                } else {
+                    await withTaskCancellationHandler {
+                        await withCheckedContinuation { hang.arm($0) }
+                    } onCancel: {
+                        hang.resume()
+                    }
+                    try Task.checkCancellation()
                 }
-                try Task.checkCancellation()
             }
             return try outcome.get()
         }
@@ -229,6 +236,34 @@ struct TravelSearchTests {
         router.release()
         try? await Task.sleep(for: .milliseconds(20))
         #expect(search.state == .failed(.timeout, asked), "the reply that arrives after the timeout is dropped")
+    }
+
+    /// The deadline does not depend on the router honouring cancellation: a router that
+    /// never returns still leaves "timed out" at the deadline, and its late success or
+    /// failure, whenever it comes, does not overwrite that.
+    @Test func theDeadlineHoldsEvenWhenTheRouterIgnoresCancellation() async {
+        for late in [Result<TravelResult, Error>.success(Self.result(mode: .car)), .failure(MKError(.serverFailure))] {
+            let router = FakeRouter()
+            router.hang = true
+            router.ignoresCancellation = true
+            router.outcomes = [late]
+            let search = TravelSearch(router: router, timeout: .milliseconds(30))
+            let asked = key(linked, picked)
+            search.search(asked, from: pointA, to: pointB)
+            await settle("timed out without any reply") { search.state == .failed(.timeout, asked) }
+            #expect(!search.isSearching)
+            router.release()
+            try? await Task.sleep(for: .milliseconds(30))
+            await Task.yield()
+            #expect(search.state == .failed(.timeout, asked), "a late \(late) never replaces the timeout")
+
+            // A new search after the timeout works as usual.
+            router.hang = false
+            router.outcomes = [.success(Self.result(mode: .walk))]
+            let next = key(linked, picked, mode: .walk)
+            search.search(next, from: pointA, to: pointB)
+            await settle("next result") { search.state == .result(Self.result(mode: .walk), next) }
+        }
     }
 
     // MARK: Transit is not an Event

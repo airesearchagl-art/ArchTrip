@@ -120,7 +120,9 @@ protocol TravelRouting {
 
 /// One travel search at a time. Each reply is tagged with the key it was asked for and is
 /// applied only if it belongs to the latest request (never-reused token): a reply that
-/// arrives after a cancel, a new search or a timeout changes nothing.
+/// arrives after a cancel, a new search or a timeout changes nothing. The deadline is
+/// kept here, not by the router: at 30 s the state becomes "timed out" and the request's
+/// token is retired, whether or not the router ever returns.
 @Observable
 final class TravelSearch {
     enum State: Equatable {
@@ -136,7 +138,6 @@ final class TravelSearch {
     private var token = 0
     private var task: Task<Void, Never>?
     private var timer: Task<Void, Never>?
-    private var timedOutToken: Int?
 
     init(router: any TravelRouting, timeout: Duration = .seconds(30)) {
         self.router = router
@@ -168,8 +169,10 @@ final class TravelSearch {
         timer = Task { [timeout] in
             try? await Task.sleep(for: timeout)
             guard !Task.isCancelled, current == self.token else { return }
-            self.timedOutToken = current
-            self.task?.cancel()
+            // The deadline itself decides: retire the request so that whatever the router
+            // returns later (a result, an error, or nothing) is dropped, and show the timeout.
+            self.cancelInFlight()
+            self.state = .failed(.timeout, key)
         }
         task = Task { [router] in
             let outcome: State
@@ -178,13 +181,9 @@ final class TravelSearch {
                 outcome = .result(result, key)
             } catch {
                 // A cancelled request may surface as CancellationError or as MapKit's own
-                // error; only the timer's cancellation becomes a visible failure.
-                if Task.isCancelled || error is CancellationError {
-                    guard self.timedOutToken == current else { return }
-                    outcome = .failed(.timeout, key)
-                } else {
-                    outcome = .failed(MapKitPlaceFetcher.classify(error), key)
-                }
+                // error; either way the request's token has been retired, so nothing shows.
+                if Task.isCancelled || error is CancellationError { return }
+                outcome = .failed(MapKitPlaceFetcher.classify(error), key)
             }
             self.apply(outcome, token: current)
         }
