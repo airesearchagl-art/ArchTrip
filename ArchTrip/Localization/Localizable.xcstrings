@@ -511,16 +511,6 @@
         }
       }
     },
-    "Changes haven't reached the server yet. Wait for sync, then try again." : {
-      "localizations" : {
-        "ja" : {
-          "stringUnit" : {
-            "state" : "translated",
-            "value" : "未同期の変更があります。同期が終わってからやり直してください。"
-          }
-        }
-      }
-    },
     "Check again" : {
       "localizations" : {
         "ja" : {
@@ -1595,6 +1585,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Apple Mapsで見つかりません"
+          }
+        }
+      }
+    },
+    "Not in sync with the server (offline, or changes not sent yet). Check the connection and try again once synced." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーと同期できていません（オフラインまたは未送信の変更）。接続を確認し、同期が終わってからやり直してください。"
           }
         }
       }

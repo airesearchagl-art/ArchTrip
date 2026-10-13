@@ -48,7 +48,8 @@ nonisolated enum TripDeletion {
 
     /// Why a deletion did not start, or stopped. Each has its own wording in the UI.
     enum Problem: Equatable, Sendable {
-        /// Queued local writes have not reached the server (offline, or still syncing).
+        /// Queued local writes have not reached the server, or the client is offline (the
+        /// wait for pending writes does not finish either way).
         case unsyncedWrites
         /// The server could not be reached for the listing or a batch.
         case offline

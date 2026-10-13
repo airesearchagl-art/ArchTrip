@@ -138,7 +138,7 @@ struct TripDeletionView: View {
 
     static func text(for problem: TripDeletion.Problem) -> LocalizedStringKey {
         switch problem {
-        case .unsyncedWrites: "Changes haven't reached the server yet. Wait for sync, then try again."
+        case .unsyncedWrites: "Not in sync with the server (offline, or changes not sent yet). Check the connection and try again once synced."
         case .offline: "Can't delete while offline. Connect and try again."
         case .denied: "The server rejected the deletion."
         case .noReply: "No reply from the server. The deletion may still complete once connected. Check again."

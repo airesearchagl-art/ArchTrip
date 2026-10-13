@@ -177,7 +177,7 @@ struct LocalizationTests {
             "What will be deleted": "削除される項目", "This can't be undone.": "この操作は取り消せません。",
             "Buildings are kept. They're shared across trips.": "建築は削除されません。建築は出張をまたいで共有されています。",
             "Checking the server…": "サーバーの内容を確認中…", "Check again": "再確認", "Deleted": "削除しました",
-            "Changes haven't reached the server yet. Wait for sync, then try again.": "未同期の変更があります。同期が終わってからやり直してください。",
+            "Not in sync with the server (offline, or changes not sent yet). Check the connection and try again once synced.": "サーバーと同期できていません（オフラインまたは未送信の変更）。接続を確認し、同期が終わってからやり直してください。",
             "Can't delete while offline. Connect and try again.": "オフラインのため削除できません。接続してからやり直してください。",
             "The server rejected the deletion.": "サーバーが削除を拒否しました。",
             "No reply from the server. The deletion may still complete once connected. Check again.":
