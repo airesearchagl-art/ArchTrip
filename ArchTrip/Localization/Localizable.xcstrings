@@ -95,6 +95,26 @@
         }
       }
     },
+    "%lld events and the trip are still there after verification." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認後も予定%lld件と出張が残っています。"
+          }
+        }
+      }
+    },
+    "%lld events are still there after verification." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "確認後も予定%lld件が残っています。"
+          }
+        }
+      }
+    },
     "%lld events outside the new dates" : {
       "localizations" : {
         "ja" : {
@@ -531,6 +551,16 @@
         }
       }
     },
+    "Check again waits for queued writes, then lists the server; only what is still there can be deleted." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再確認では未送信の書込みの完了を待ってからサーバーを再確認し、残っているものだけを削除できます。"
+          }
+        }
+      }
+    },
     "Check your network connection and try again." : {
       "localizations" : {
         "ja" : {
@@ -657,6 +687,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "候補の確認"
+          }
+        }
+      }
+    },
+    "Confirmed deleted: %lld events" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除確認済み：予定%lld件"
+          }
+        }
+      }
+    },
+    "Confirmed deleted: %lld events and the trip" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除確認済み：予定%lld件と出張"
           }
         }
       }
@@ -909,12 +959,12 @@
         }
       }
     },
-    "Deletion stopped after %lld events. The trip stays until all its events are gone." : {
+    "Deletion stopped." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "予定%lld件を削除した時点で中断しました。出張は予定がすべて消えるまで残ります。"
+            "value" : "削除を中断しました。"
           }
         }
       }
@@ -1535,6 +1585,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "施設候補はありません。"
+          }
+        }
+      }
+    },
+    "No reply from the server. A sent batch (%lld events and the trip) may still apply once connected." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーの応答がありません。送信済みの削除（予定%lld件と出張）は接続後に適用されることがあります。"
+          }
+        }
+      }
+    },
+    "No reply from the server. A sent batch (%lld events) may still apply once connected." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "サーバーの応答がありません。送信済みの削除（予定%lld件）は接続後に適用されることがあります。"
           }
         }
       }
@@ -2229,6 +2299,16 @@
         }
       }
     },
+    "The result couldn't be verified on the server. Check again before assuming anything was deleted." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除結果をサーバーで確認できませんでした。再確認するまで削除済みとみなさないでください。"
+          }
+        }
+      }
+    },
     "The server didn't accept the change, so it was undone on this device." : {
       "localizations" : {
         "ja" : {
@@ -2275,6 +2355,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "場所を関連付けている間、保存済みの住所・座標は使われません。解除すると再び表示されます。"
+          }
+        }
+      }
+    },
+    "The trip is deleted. Remaining events are deleted after checking again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張は削除済みです。残った予定は再確認後に削除できます。"
+          }
+        }
+      }
+    },
+    "The trip is still there." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張は残っています。"
           }
         }
       }
@@ -2665,6 +2765,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除される項目"
+          }
+        }
+      }
+    },
+    "Whether the trip is deleted is not confirmed." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張の削除は未確定です。"
           }
         }
       }

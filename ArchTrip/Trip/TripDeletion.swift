@@ -2,9 +2,9 @@ import Foundation
 import Observation
 
 /// What the server holds under a Trip, read from the server (never the cache) right
-/// before deleting. Every Event document counts, readable or not.
+/// before deleting and again afterwards. Every Event document counts, readable or not.
 nonisolated struct TripDeletionInventory: Equatable, Sendable {
-    /// False when the Trip document is already gone (deleted elsewhere).
+    /// False when the Trip document is gone.
     let tripExists: Bool
     /// Every Event document ID under the Trip, including unreadable documents.
     let eventIDs: [String]
@@ -17,6 +17,9 @@ nonisolated struct TripDeletionInventory: Equatable, Sendable {
         self.eventIDs = eventIDs
         self.unreadableEventIDs = unreadableEventIDs
     }
+
+    /// Nothing left on the server: the only state that counts as "deleted".
+    var isEmpty: Bool { !tripExists && eventIDs.isEmpty }
 }
 
 /// The three server operations a Trip deletion needs. `TripStore` is the Firestore
@@ -33,7 +36,8 @@ protocol TripDeleting {
 }
 
 /// RF-03: deleting a Trip means deleting its Events and then the Trip, never the Trip
-/// alone. Pure rules live here; `TripDeletionRun` drives them.
+/// alone, and reporting "deleted" only once the server confirms nothing is left. Pure
+/// rules live here; `TripDeletionRun` drives them.
 nonisolated enum TripDeletion {
     /// Firestore allows 500 operations per batch; the headroom is deliberate.
     static let eventsPerBatch = 450
@@ -44,19 +48,21 @@ nonisolated enum TripDeletion {
         /// Above this the deletion is refused here rather than run for minutes.
         var maxEvents = 2_000
         var eventsPerBatch = TripDeletion.eventsPerBatch
+        /// How many times Events found by the verification listing (added meanwhile) are
+        /// deleted before the run stops and reports what is left.
+        var maxSweeps = 3
     }
 
-    /// Why a deletion did not start, or stopped. Each has its own wording in the UI.
+    /// Why a deletion did not start, or why a step failed. Each has its own wording.
     enum Problem: Equatable, Sendable {
         /// Queued local writes have not reached the server, or the client is offline (the
         /// wait for pending writes does not finish either way).
         case unsyncedWrites
-        /// The server could not be reached for the listing or a batch.
+        /// The server could not be reached.
         case offline
         /// The server refused (permission).
         case denied
-        /// A batch was sent but no acknowledgement arrived in time. It stays queued and
-        /// may still complete once connected.
+        /// A request was sent but no acknowledgement arrived in time.
         case noReply
         case tooManyEvents(Int)
         case other(domain: String, code: Int)
@@ -72,6 +78,29 @@ nonisolated enum TripDeletion {
     struct Batch: Equatable, Sendable {
         let eventIDs: [String]
         let andTrip: Bool
+    }
+
+    /// Why a run stopped short of a confirmed deletion, and what the server did
+    /// acknowledge. Only an acknowledged batch counts; a batch sent without an
+    /// acknowledgement may still apply later, so it is reported as unconfirmed.
+    struct Stop: Equatable, Sendable {
+        enum Reason: Equatable, Sendable {
+            /// A batch was refused or could not be sent; nothing of it was applied.
+            case batchFailed(Problem)
+            /// A batch was sent but not acknowledged in time (`events` and whether the
+            /// Trip was in it). It stays queued and may still apply once connected.
+            case batchUnconfirmed(events: Int, includesTrip: Bool)
+            /// The server could not be read after the batches; what remains is unknown.
+            case verificationFailed(Problem)
+            /// The server still listed something after the sweep limit.
+            case leftovers(events: Int, tripExists: Bool)
+        }
+
+        let reason: Reason
+        /// Events in batches the server acknowledged.
+        let acknowledgedEvents: Int
+        /// Whether a batch holding the Trip was acknowledged.
+        let tripAcknowledged: Bool
     }
 
     /// Events first, in batches; the Trip goes with the last batch (alone when there are
@@ -109,9 +138,10 @@ nonisolated enum TripDeletion {
 }
 
 /// One Trip deletion from the confirmation screen: a server-side check first, then the
-/// batches, then a sweep for Events added in between. Every reply is applied only when
-/// it belongs to the current run (never-reused token), so a cancelled check or an old
-/// batch cannot change the state shown.
+/// batches, then a server-side verification that sweeps Events added in between. The
+/// run ends in `.done` only when a listing shows the Trip and its Events gone; anything
+/// else is `.stopped` with what was acknowledged. Every reply is applied only when it
+/// belongs to the current run (never-reused token).
 @Observable
 final class TripDeletionRun {
     enum State: Equatable {
@@ -120,9 +150,10 @@ final class TripDeletionRun {
         /// Not started; the reason is shown and "Check again" is offered.
         case blocked(TripDeletion.Problem)
         case ready(TripDeletion.Summary)
-        case deleting(done: Int, total: Int)
-        /// Stopped part-way: `deletedEvents` are gone, the Trip and the rest remain.
-        case failed(TripDeletion.Problem, deletedEvents: Int)
+        case deleting(acknowledged: Int, total: Int)
+        /// Stopped before the server confirmed everything is gone (see `Stop`).
+        case stopped(TripDeletion.Stop)
+        /// The server listed neither the Trip nor any Event.
         case done
     }
 
@@ -133,6 +164,9 @@ final class TripDeletionRun {
     private let configuration: TripDeletion.Configuration
     private var token = 0
     private var task: Task<Void, Never>?
+    /// The listing `.ready` was computed from; the batches are built from it, not from
+    /// the cache or the screen.
+    private var pendingInventory: TripDeletionInventory?
 
     init(deleter: any TripDeleting, uid: String, tripID: String, configuration: TripDeletion.Configuration = .init()) {
         self.deleter = deleter
@@ -148,9 +182,9 @@ final class TripDeletionRun {
         }
     }
 
-    /// Checks that the deletion can complete: local writes synced, server reachable, the
-    /// Trip still there, and not too many Events. Ends in `.ready`, `.blocked`, or `.done`
-    /// when nothing is left to delete.
+    /// Checks that the deletion can complete: local writes synced, server reachable, and
+    /// not too many Events. Ends in `.ready`, `.blocked`, or `.done` when the server
+    /// already holds nothing.
     func check() {
         guard !isBusy else { return }
         let current = begin()
@@ -165,7 +199,7 @@ final class TripDeletionRun {
             do {
                 let inventory = try await deleter.inventory(uid: uid, tripID: tripID)
                 guard current == token else { return }
-                if !inventory.tripExists, inventory.eventIDs.isEmpty {
+                if inventory.isEmpty {
                     apply(.done, token: current)
                 } else if inventory.eventIDs.count > configuration.maxEvents {
                     apply(.blocked(.tooManyEvents(inventory.eventIDs.count)), token: current)
@@ -183,57 +217,85 @@ final class TripDeletionRun {
         }
     }
 
-    /// The listing `.ready` was computed from; the batches are built from it, not from
-    /// the cache or the screen.
-    private var pendingInventory: TripDeletionInventory?
-
-    /// Runs the batches for the checked listing. Only from `.ready`.
+    /// Runs the batches for the checked listing, then verifies on the server. Only from `.ready`.
     func delete() {
         guard case .ready = state, let inventory = pendingInventory else { return }
         let current = begin()
-        let batches = TripDeletion.batches(
-            eventIDs: inventory.eventIDs, tripExists: inventory.tripExists, perBatch: configuration.eventsPerBatch
-        )
         let total = inventory.eventIDs.count
-        state = .deleting(done: 0, total: total)
+        state = .deleting(acknowledged: 0, total: total)
         task = Task {
-            var done = 0
-            for batch in batches {
+            var acknowledged = 0
+            var tripAcknowledged = false
+
+            func stop(_ reason: TripDeletion.Stop.Reason) {
+                apply(.stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripAcknowledged: tripAcknowledged)), token: current)
+            }
+
+            /// Sends the batches in order; false when one failed (the stop is already applied).
+            func send(_ batches: [TripDeletion.Batch]) async -> Bool {
+                for batch in batches {
+                    do {
+                        try await deleter.delete(
+                            eventIDs: batch.eventIDs, andTrip: batch.andTrip, uid: uid, tripID: tripID,
+                            timeout: configuration.batchTimeout
+                        )
+                    } catch {
+                        guard current == token else { return false }
+                        let problem = TripDeletion.problem(for: error)
+                        if problem == .noReply {
+                            stop(.batchUnconfirmed(events: batch.eventIDs.count, includesTrip: batch.andTrip))
+                        } else {
+                            stop(.batchFailed(problem))
+                        }
+                        return false
+                    }
+                    guard current == token else { return false }
+                    acknowledged += batch.eventIDs.count
+                    if batch.andTrip { tripAcknowledged = true }
+                    state = .deleting(acknowledged: acknowledged, total: total)
+                }
+                return true
+            }
+
+            let batches = TripDeletion.batches(
+                eventIDs: inventory.eventIDs, tripExists: inventory.tripExists, perBatch: configuration.eventsPerBatch
+            )
+            guard await send(batches) else { return }
+
+            // Verification: the server must list nothing. Events another device added
+            // between the listing and the Trip's deletion are swept, in batches, a bounded
+            // number of times; none can be created once the Trip is gone.
+            var sweeps = 0
+            while true {
+                let listing: TripDeletionInventory
                 do {
-                    try await deleter.delete(
-                        eventIDs: batch.eventIDs, andTrip: batch.andTrip, uid: uid, tripID: tripID,
-                        timeout: configuration.batchTimeout
-                    )
+                    listing = try await deleter.inventory(uid: uid, tripID: tripID)
                 } catch {
-                    apply(.failed(TripDeletion.problem(for: error), deletedEvents: done), token: current)
+                    guard current == token else { return }
+                    stop(.verificationFailed(TripDeletion.problem(for: error)))
                     return
                 }
                 guard current == token else { return }
-                done += batch.eventIDs.count
-                state = .deleting(done: done, total: total)
-            }
-            // Events created between the listing and the Trip's deletion (another device)
-            // would be left under a Trip that no longer exists; none can be created after.
-            for _ in 0..<3 {
-                guard let leftovers = try? await deleter.inventory(uid: uid, tripID: tripID), current == token else { break }
-                guard !leftovers.eventIDs.isEmpty else { break }
-                do {
-                    try await deleter.delete(
-                        eventIDs: leftovers.eventIDs, andTrip: leftovers.tripExists, uid: uid, tripID: tripID,
-                        timeout: configuration.batchTimeout
-                    )
-                } catch {
-                    apply(.failed(TripDeletion.problem(for: error), deletedEvents: done), token: current)
+                if listing.isEmpty {
+                    apply(.done, token: current)
                     return
                 }
-                done += leftovers.eventIDs.count
+                if sweeps == configuration.maxSweeps {
+                    stop(.leftovers(events: listing.eventIDs.count, tripExists: listing.tripExists))
+                    return
+                }
+                sweeps += 1
+                let sweep = TripDeletion.batches(
+                    eventIDs: listing.eventIDs, tripExists: listing.tripExists, perBatch: configuration.eventsPerBatch
+                )
+                guard await send(sweep) else { return }
             }
-            apply(.done, token: current)
         }
     }
 
-    /// After a failure or a blocker: a fresh check (which lists what remains), then the
-    /// user confirms again. Deleting is idempotent: what is gone is not listed.
+    /// After a stop or a blocker: waits for queued writes (an unconfirmed batch included),
+    /// lists the server again and offers to delete what remains, or ends in `.done` when
+    /// nothing is left. Deleting is idempotent: what is gone is not listed.
     func checkAgain() {
         guard !isBusy else { return }
         state = .idle

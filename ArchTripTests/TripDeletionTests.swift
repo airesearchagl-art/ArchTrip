@@ -56,6 +56,10 @@ struct TripDeletionTests {
 
     private let fast = TripDeletion.Configuration(pendingWritesTimeout: .milliseconds(10), batchTimeout: .milliseconds(10))
 
+    private func stopped(_ reason: TripDeletion.Stop.Reason, acknowledged: Int, trip: Bool) -> TripDeletionRun.State {
+        .stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripAcknowledged: trip))
+    }
+
     private func ids(_ count: Int) -> [String] { (0..<count).map { "e\($0)" } }
 
     private func settle(_ what: Comment, _ condition: @escaping () -> Bool) async {
@@ -99,12 +103,17 @@ struct TripDeletionTests {
 
     @Test func anEmptyTripDeletesOnlyTheTrip() async {
         let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: [])),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: [])),
+        ]
         let run = run(deleter)
         run.check()
         await settle("ready") { run.state == .ready(TripDeletion.Summary(tripExists: true, eventCount: 0, unreadableEventCount: 0)) }
         run.delete()
         await settle("done") { run.state == .done }
         #expect(deleter.batches == [FakeDeleter.Call(eventIDs: [], andTrip: true)])
+        #expect(deleter.inventoryCalls == 2, "the listing before, and the verification that found nothing")
     }
 
     @Test func eventsReadableOrNotAreDeletedBeforeTheTrip() async {
@@ -197,7 +206,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("failed") { run.state == .failed(.offline, deletedEvents: 450) }
+        await settle("stopped") { run.state == stopped(.batchFailed(.offline), acknowledged: 450, trip: false) }
         #expect(deleter.batches.count == 2)
         #expect(deleter.batches.allSatisfy { !$0.andTrip }, "the Trip is never deleted before its Events")
 
@@ -217,7 +226,9 @@ struct TripDeletionTests {
         #expect(Set(retried.flatMap(\.eventIDs)) == Set(eventIDs[450...]), "only what remained")
     }
 
-    @Test func aTimedOutBatchIsReportedAsNoReply() async {
+    /// A batch sent without an acknowledgement is neither "deleted" nor "undone": it is
+    /// reported as unconfirmed, with the Trip's fate unknown when the batch held it.
+    @Test func aTimedOutBatchIsReportedAsUnconfirmed() async {
         let deleter = FakeDeleter()
         deleter.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(2)))]
         deleter.failingBatch = 1
@@ -226,7 +237,115 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("no reply") { run.state == .failed(.noReply, deletedEvents: 0) }
+        await settle("unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 2, includesTrip: true), acknowledged: 0, trip: false) }
+    }
+
+    // MARK: Verification after the batches (review findings 1–3)
+
+    /// The listing after the batches failing is not success: the run stops as
+    /// "verification failed" with what was acknowledged, and Check again finishes when
+    /// the server then lists nothing.
+    @Test func aFailedVerificationIsNotSuccess() async {
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(3))),
+            .failure(NSError(domain: "FIRFirestoreErrorDomain", code: 14)),
+        ]
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("verification failed") { run.state == stopped(.verificationFailed(.offline), acknowledged: 3, trip: true) }
+        #expect(deleter.batches.count == 1)
+
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
+        run.checkAgain()
+        await settle("done after a clean listing") { run.state == .done }
+        #expect(deleter.batches.count == 1, "nothing is sent again")
+    }
+
+    /// Events found by the verification listing are deleted in the same batches as the
+    /// main run, never in one oversized batch.
+    @Test func theSweepIsBatchedLikeTheMainRun() async {
+        let deleter = FakeDeleter()
+        let late = (0..<1_001).map { "late\($0)" }
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(2))),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: late)),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: [])),
+        ]
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("done") { run.state == .done }
+        #expect(deleter.batches.map(\.eventIDs.count) == [2, 450, 450, 101])
+        #expect(deleter.batches.map(\.andTrip) == [true, false, false, false])
+        #expect(deleter.batches.allSatisfy { $0.eventIDs.count <= TripDeletion.eventsPerBatch })
+        #expect(deleter.inventoryCalls == 3, "listing, verification with leftovers, verification clean")
+    }
+
+    /// When the server keeps listing Events after the sweep limit, the run stops and says
+    /// what is left instead of finishing.
+    @Test func leftoversAfterTheSweepLimitAreReportedNotFinished() async {
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(1))),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["stuck1", "stuck2"])),
+        ]
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("leftovers") { run.state == stopped(.leftovers(events: 2, tripExists: false), acknowledged: 1 + 3 * 2, trip: true) }
+        #expect(deleter.batches.count == 1 + fast.maxSweeps)
+        #expect(deleter.inventoryCalls == 1 + fast.maxSweeps + 1, "a verification after every sweep, plus the last one")
+    }
+
+    /// The last batch (with the Trip) times out, then applies on the server anyway:
+    /// Check again waits for queued writes, lists nothing, and only then reports done.
+    @Test func aTimedOutLastBatchThatAppliesLaterCompletesOnCheckAgain() async {
+        let deleter = FakeDeleter()
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(1_001)))]
+        deleter.failingBatch = 3
+        deleter.batchError = AccountError.timedOut
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("last batch unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 101, includesTrip: true), acknowledged: 900, trip: false) }
+
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
+        run.checkAgain()
+        await settle("done") { run.state == .done }
+        #expect(deleter.batches.count == 3, "nothing is sent twice")
+    }
+
+    /// A sweep failing after the Trip's batch was acknowledged says the Trip is deleted
+    /// and the remaining Events are unconfirmed; Check again lists and deletes them.
+    @Test func aSweepFailureAfterTheTripIsGoneSaysSo() async {
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(2))),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
+        ]
+        deleter.failingBatch = 2
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("sweep failed") { run.state == stopped(.batchFailed(.offline), acknowledged: 2, trip: true) }
+
+        deleter.failingBatch = nil
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: [])),
+        ]
+        run.checkAgain()
+        await settle("ready for what remains") { run.state == .ready(TripDeletion.Summary(tripExists: false, eventCount: 1, unreadableEventCount: 0)) }
+        run.delete()
+        await settle("done") { run.state == .done }
+        #expect(deleter.batches.last == FakeDeleter.Call(eventIDs: ["late"], andTrip: false))
     }
 
     /// Events another device adds between the listing and the Trip's deletion are swept

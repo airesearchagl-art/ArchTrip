@@ -4,7 +4,8 @@ import SwiftUI
 /// under the Trip (read fresh, never from the cache), says that the deletion cannot be
 /// undone and that Buildings stay, and only then offers the one destructive action.
 /// The deletion does not start while offline, with unsynced writes, or with too many
-/// Events; the reason is shown instead.
+/// Events; the reason is shown instead. "Deleted" is shown only once the server lists
+/// nothing; a stop says what was acknowledged and what is unconfirmed.
 struct TripDeletionView: View {
     let trip: Trip
     /// Called once the server has acknowledged every batch.
@@ -82,8 +83,8 @@ struct TripDeletionView: View {
                 case .done:
                     session.logTripDeletion("completed for trip \(trip.id.prefix(8))")
                     onDeleted()
-                case .failed(let problem, let deleted):
-                    session.logTripDeletion("stopped for trip \(trip.id.prefix(8)) after \(deleted) events: \(problem)")
+                case .stopped(let stop):
+                    session.logTripDeletion("stopped for trip \(trip.id.prefix(8)): \(stop.reason) acknowledgedEvents=\(stop.acknowledgedEvents) tripAcknowledged=\(stop.tripAcknowledged)")
                 case .blocked(let problem):
                     session.logTripDeletion("not started for trip \(trip.id.prefix(8)): \(problem)")
                 default:
@@ -117,22 +118,81 @@ struct TripDeletionView: View {
                     Text("Delete trip and \(summary.eventCount) events")
                 }
             }
-        case .deleting(let done, let total):
+        case .deleting(let acknowledged, let total):
             HStack(spacing: 8) {
                 ProgressView()
-                Text("Deleting… \(done) of \(total)")
+                Text("Deleting… \(acknowledged) of \(total)")
             }
             .foregroundStyle(.secondary)
-        case .failed(let problem, let deleted):
-            Label(Self.text(for: problem), systemImage: "exclamationmark.triangle")
-                .foregroundStyle(.orange)
-            Text("Deletion stopped after \(deleted) events. The trip stays until all its events are gone.")
+        case .stopped(let stop):
+            stopRows(stop)
+            Button("Check again") { run?.checkAgain() }
+            Text("Check again waits for queued writes, then lists the server; only what is still there can be deleted.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Button("Retry") { run?.checkAgain() }
         case .done:
             Label("Deleted", systemImage: "checkmark.circle")
                 .foregroundStyle(.green)
+        }
+    }
+
+    /// What stopped the run, what the server acknowledged, and where the Trip stands.
+    /// Acknowledged counts are the only ones called "deleted"; a batch without an
+    /// acknowledgement is reported as unconfirmed, never as done or as undone.
+    @ViewBuilder
+    private func stopRows(_ stop: TripDeletion.Stop) -> some View {
+        switch stop.reason {
+        case .batchFailed(let problem):
+            Label(Self.text(for: problem), systemImage: "exclamationmark.triangle")
+                .foregroundStyle(.orange)
+            Text("Deletion stopped.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .batchUnconfirmed(let events, let includesTrip):
+            Label {
+                if includesTrip {
+                    Text("No reply from the server. A sent batch (\(events) events and the trip) may still apply once connected.")
+                } else {
+                    Text("No reply from the server. A sent batch (\(events) events) may still apply once connected.")
+                }
+            } icon: {
+                Image(systemName: "clock.badge.questionmark")
+            }
+            .foregroundStyle(.orange)
+        case .verificationFailed(let problem):
+            Label("The result couldn't be verified on the server. Check again before assuming anything was deleted.", systemImage: "questionmark.circle")
+                .foregroundStyle(.orange)
+            Text(Self.text(for: problem))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .leftovers(let events, let tripExists):
+            Label {
+                if tripExists {
+                    Text("\(events) events and the trip are still there after verification.")
+                } else {
+                    Text("\(events) events are still there after verification.")
+                }
+            } icon: {
+                Image(systemName: "exclamationmark.triangle")
+            }
+            .foregroundStyle(.orange)
+        }
+        if stop.tripAcknowledged {
+            Text("Confirmed deleted: \(stop.acknowledgedEvents) events and the trip")
+            Text("The trip is deleted. Remaining events are deleted after checking again.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        } else {
+            Text("Confirmed deleted: \(stop.acknowledgedEvents) events")
+            if case .batchUnconfirmed(_, true) = stop.reason {
+                Text("Whether the trip is deleted is not confirmed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text("The trip is still there.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         }
     }
 
