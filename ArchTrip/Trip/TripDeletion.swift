@@ -222,45 +222,14 @@ final class TripDeletionRun {
         guard case .ready = state, let inventory = pendingInventory else { return }
         let current = begin()
         let total = inventory.eventIDs.count
+        acknowledgedEvents = 0
+        tripAcknowledged = false
         state = .deleting(acknowledged: 0, total: total)
         task = Task {
-            var acknowledged = 0
-            var tripAcknowledged = false
-
-            func stop(_ reason: TripDeletion.Stop.Reason) {
-                apply(.stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripAcknowledged: tripAcknowledged)), token: current)
-            }
-
-            /// Sends the batches in order; false when one failed (the stop is already applied).
-            func send(_ batches: [TripDeletion.Batch]) async -> Bool {
-                for batch in batches {
-                    do {
-                        try await deleter.delete(
-                            eventIDs: batch.eventIDs, andTrip: batch.andTrip, uid: uid, tripID: tripID,
-                            timeout: configuration.batchTimeout
-                        )
-                    } catch {
-                        guard current == token else { return false }
-                        let problem = TripDeletion.problem(for: error)
-                        if problem == .noReply {
-                            stop(.batchUnconfirmed(events: batch.eventIDs.count, includesTrip: batch.andTrip))
-                        } else {
-                            stop(.batchFailed(problem))
-                        }
-                        return false
-                    }
-                    guard current == token else { return false }
-                    acknowledged += batch.eventIDs.count
-                    if batch.andTrip { tripAcknowledged = true }
-                    state = .deleting(acknowledged: acknowledged, total: total)
-                }
-                return true
-            }
-
             let batches = TripDeletion.batches(
                 eventIDs: inventory.eventIDs, tripExists: inventory.tripExists, perBatch: configuration.eventsPerBatch
             )
-            guard await send(batches) else { return }
+            guard await send(batches, total: total, token: current) else { return }
 
             // Verification: the server must list nothing. Events another device added
             // between the listing and the Trip's deletion are swept, in batches, a bounded
@@ -271,8 +240,7 @@ final class TripDeletionRun {
                 do {
                     listing = try await deleter.inventory(uid: uid, tripID: tripID)
                 } catch {
-                    guard current == token else { return }
-                    stop(.verificationFailed(TripDeletion.problem(for: error)))
+                    stop(.verificationFailed(TripDeletion.problem(for: error)), token: current)
                     return
                 }
                 guard current == token else { return }
@@ -281,16 +249,51 @@ final class TripDeletionRun {
                     return
                 }
                 if sweeps == configuration.maxSweeps {
-                    stop(.leftovers(events: listing.eventIDs.count, tripExists: listing.tripExists))
+                    stop(.leftovers(events: listing.eventIDs.count, tripExists: listing.tripExists), token: current)
                     return
                 }
                 sweeps += 1
                 let sweep = TripDeletion.batches(
                     eventIDs: listing.eventIDs, tripExists: listing.tripExists, perBatch: configuration.eventsPerBatch
                 )
-                guard await send(sweep) else { return }
+                guard await send(sweep, total: total, token: current) else { return }
             }
         }
+    }
+
+    /// What the server acknowledged in the current run.
+    private var acknowledgedEvents = 0
+    private var tripAcknowledged = false
+
+    /// Sends the batches in order, counting only acknowledged ones. False when one failed
+    /// or the run was superseded; the stop, if any, is already applied.
+    private func send(_ batches: [TripDeletion.Batch], total: Int, token current: Int) async -> Bool {
+        for batch in batches {
+            do {
+                try await deleter.delete(
+                    eventIDs: batch.eventIDs, andTrip: batch.andTrip, uid: uid, tripID: tripID,
+                    timeout: configuration.batchTimeout
+                )
+            } catch {
+                guard current == token else { return false }
+                let problem = TripDeletion.problem(for: error)
+                if problem == .noReply {
+                    stop(.batchUnconfirmed(events: batch.eventIDs.count, includesTrip: batch.andTrip), token: current)
+                } else {
+                    stop(.batchFailed(problem), token: current)
+                }
+                return false
+            }
+            guard current == token else { return false }
+            acknowledgedEvents += batch.eventIDs.count
+            if batch.andTrip { tripAcknowledged = true }
+            state = .deleting(acknowledged: acknowledgedEvents, total: total)
+        }
+        return true
+    }
+
+    private func stop(_ reason: TripDeletion.Stop.Reason, token: Int) {
+        apply(.stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledgedEvents, tripAcknowledged: tripAcknowledged)), token: token)
     }
 
     /// After a stop or a blocker: waits for queued writes (an unconfirmed batch included),
