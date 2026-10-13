@@ -42,6 +42,9 @@ final class AppSession {
     /// In-memory Apple Maps place lookups for linked Buildings (v0.2). Nothing it holds
     /// is persisted or logged; it is cleared with the user's data.
     let places = PlaceDirectory(fetcher: MapKitPlaceFetcher())
+    /// RF-03: stopped Trip deletions kept on this device until the server confirms them
+    /// (Trip IDs and counts only). Read by the Trip list, written by the deletion run.
+    let deletionLedger = TripDeletionLedger()
 
     @ObservationIgnored private(set) var store: TripStore?
     @ObservationIgnored private var authHandle: AuthStateDidChangeListenerHandle?
@@ -104,6 +107,23 @@ final class AppSession {
 
     func trip(id: String) -> Trip? {
         trips.first { $0.id == id }
+    }
+
+    /// Stopped deletions of the signed-in user, most recent first.
+    var pendingTripDeletions: [PendingTripDeletion] {
+        guard let uid else { return [] }
+        return deletionLedger.records(for: uid)
+    }
+
+    /// The server operations a Trip deletion runs through: the store, or in a Debug build
+    /// launched with `ARCHTRIP_DEBUG_DELETION_FAULT`, the store wrapped by the simulator
+    /// fault hook (see `TripDeletionFaults.swift`). Nil without a store.
+    var tripDeleter: any TripDeleting {
+        guard let store else { return UnavailableTripDeleter() }
+        #if DEBUG
+        if let faulty = FaultInjectingTripDeleter(wrapping: store) { return faulty }
+        #endif
+        return store
     }
 
     func building(id: String) -> Building? {
@@ -320,5 +340,16 @@ final class AppSession {
         let time = Date().formatted(.dateTime.hour().minute().second().locale(Locale(identifier: "en_US_POSIX")))
         log.insert("\(time) \(message)", at: 0)
         if log.count > 100 { log.removeLast() }
+    }
+}
+
+/// Stands in before Firebase is configured: every operation reports the server as unreachable.
+private struct UnavailableTripDeleter: TripDeleting {
+    func waitForPendingWrites(timeout: Duration) async throws { throw AccountError.timedOut }
+    func inventory(uid: String, tripID: String) async throws -> TripDeletionInventory {
+        throw NSError(domain: "FIRFirestoreErrorDomain", code: 14)
+    }
+    func delete(eventIDs: [String], andTrip: Bool, uid: String, tripID: String, timeout: Duration) async throws {
+        throw NSError(domain: "FIRFirestoreErrorDomain", code: 14)
     }
 }

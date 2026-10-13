@@ -1,14 +1,18 @@
 import SwiftUI
 
-/// RF-03: the confirmation screen for deleting a Trip. It lists what the server holds
-/// under the Trip (read fresh, never from the cache), says that the deletion cannot be
-/// undone and that Buildings stay, and only then offers the one destructive action.
-/// The deletion does not start while offline, with unsynced writes, or with too many
-/// Events; the reason is shown instead. "Deleted" is shown only once the server lists
-/// nothing; a stop says what was acknowledged and what is unconfirmed.
+/// RF-03: the confirmation screen for deleting a Trip, and the screen a stopped deletion
+/// is resumed from (by Trip ID, with or without the Trip still existing). It lists what
+/// the server holds under the Trip (read fresh, never from the cache), says that the
+/// deletion cannot be undone and that Buildings stay, and only then offers the one
+/// destructive action. The deletion does not start while offline, with unsynced writes,
+/// or with too many Events; the reason is shown instead. "Deleted" is shown only once
+/// the server lists nothing; a stop says what was acknowledged, what is unconfirmed, and
+/// what is known about the Trip itself.
 struct TripDeletionView: View {
-    let trip: Trip
-    /// Called once the server has acknowledged every batch.
+    let tripID: String
+    /// The Trip as the list knows it, for the heading; nil when it is already gone.
+    let trip: Trip?
+    /// Called once the server has confirmed that nothing is left.
     let onDeleted: () -> Void
 
     @Environment(AppSession.self) private var session
@@ -28,10 +32,18 @@ struct TripDeletionView: View {
             List {
                 Section {
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(verbatim: trip.title)
-                            .font(.headline)
-                        Text(verbatim: DateFormatting.dateRange(trip.startDate, trip.endDate, locale: locale, calendar: .current))
-                            .foregroundStyle(.secondary)
+                        if let trip {
+                            Text(verbatim: trip.title)
+                                .font(.headline)
+                            Text(verbatim: DateFormatting.dateRange(trip.startDate, trip.endDate, locale: locale, calendar: .current))
+                                .foregroundStyle(.secondary)
+                        } else {
+                            Text("Trip (deletion in progress)")
+                                .font(.headline)
+                            Text("ID \(String(tripID.prefix(8)))…")
+                                .font(.caption.monospaced())
+                                .foregroundStyle(.secondary)
+                        }
                     }
                     if case .ready(let summary) = state {
                         Label {
@@ -39,6 +51,11 @@ struct TripDeletionView: View {
                                 Text("\(summary.eventCount) events")
                                 if summary.unreadableEventCount > 0 {
                                     Text("\(summary.unreadableEventCount) of them can't be read and will be deleted too.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                                if !summary.tripExists {
+                                    Text("The trip is no longer on the server (verified).")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
@@ -73,20 +90,20 @@ struct TripDeletionView: View {
             }
             .interactiveDismissDisabled(isDeleting)
             .task {
-                guard run == nil, let uid = session.uid, let store = session.store else { return }
-                let run = TripDeletionRun(deleter: store, uid: uid, tripID: trip.id)
+                guard run == nil, let uid = session.uid else { return }
+                let run = TripDeletionRun(deleter: session.tripDeleter, uid: uid, tripID: tripID, ledger: session.deletionLedger)
                 self.run = run
                 run.check()
             }
             .onChange(of: state) { _, newState in
                 switch newState {
                 case .done:
-                    session.logTripDeletion("completed for trip \(trip.id.prefix(8))")
+                    session.logTripDeletion("confirmed for trip \(tripID.prefix(8))")
                     onDeleted()
                 case .stopped(let stop):
-                    session.logTripDeletion("stopped for trip \(trip.id.prefix(8)): \(stop.reason) acknowledgedEvents=\(stop.acknowledgedEvents) tripAcknowledged=\(stop.tripAcknowledged)")
+                    session.logTripDeletion("stopped for trip \(tripID.prefix(8)): \(stop.reasonCode) acknowledgedEvents=\(stop.acknowledgedEvents) trip=\(stop.tripStatus.rawValue) recorded=\(stop.needsFollowUp)")
                 case .blocked(let problem):
-                    session.logTripDeletion("not started for trip \(trip.id.prefix(8)): \(problem)")
+                    session.logTripDeletion("not started for trip \(tripID.prefix(8)): \(problem)")
                 default:
                     break
                 }
@@ -112,7 +129,9 @@ struct TripDeletionView: View {
             Button(role: .destructive) {
                 run?.delete()
             } label: {
-                if summary.eventCount == 0 {
+                if !summary.tripExists {
+                    Text("Delete the \(summary.eventCount) remaining events")
+                } else if summary.eventCount == 0 {
                     Text("Delete Trip")
                 } else {
                     Text("Delete trip and \(summary.eventCount) events")
@@ -130,15 +149,21 @@ struct TripDeletionView: View {
             Text("Check again waits for queued writes, then lists the server; only what is still there can be deleted.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
+            if stop.needsFollowUp {
+                Text("This deletion is kept in the trip list until the server confirms it, also after a restart.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
         case .done:
             Label("Deleted", systemImage: "checkmark.circle")
                 .foregroundStyle(.green)
         }
     }
 
-    /// What stopped the run, what the server acknowledged, and where the Trip stands.
-    /// Acknowledged counts are the only ones called "deleted"; a batch without an
-    /// acknowledgement is reported as unconfirmed, never as done or as undone.
+    /// What stopped the run, what the server acknowledged, and what is known about the
+    /// Trip. Acknowledged counts are the only ones called "deleted"; a batch without an
+    /// acknowledgement is unconfirmed; the Trip's own line comes from listings and
+    /// acknowledgements only, never from the absence of one.
     @ViewBuilder
     private func stopRows(_ stop: TripDeletion.Stop) -> some View {
         switch stop.reason {
@@ -177,22 +202,22 @@ struct TripDeletionView: View {
             }
             .foregroundStyle(.orange)
         }
-        if stop.tripAcknowledged {
+        if stop.tripStatus == .deletionAcknowledged {
             Text("Confirmed deleted: \(stop.acknowledgedEvents) events and the trip")
-            Text("The trip is deleted. Remaining events are deleted after checking again.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         } else {
             Text("Confirmed deleted: \(stop.acknowledgedEvents) events")
-            if case .batchUnconfirmed(_, true) = stop.reason {
-                Text("Whether the trip is deleted is not confirmed.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            } else {
-                Text("The trip is still there.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+        }
+        Text(Self.text(for: stop.tripStatus))
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    static func text(for status: TripDeletion.TripStatus) -> LocalizedStringKey {
+        switch status {
+        case .present: "The trip is still on the server (last listing)."
+        case .deletionAcknowledged: "The server acknowledged the trip's deletion. Remaining events are deleted after checking again."
+        case .verifiedGone: "The trip is no longer on the server (verified)."
+        case .unknown: "Whether the trip is deleted is not confirmed."
         }
     }
 
@@ -205,5 +230,38 @@ struct TripDeletionView: View {
         case .tooManyEvents(let count): "This trip has too many events to delete here (\(count))."
         case .other(let domain, let code): "Couldn't delete (\(domain) \(code))."
         }
+    }
+}
+
+/// A row in the Trip list for a deletion that stopped after something was sent: the
+/// Trip ID, what is known, and the way back into the confirmation screen.
+struct PendingTripDeletionRow: View {
+    let record: PendingTripDeletion
+    let resume: () -> Void
+
+    @Environment(\.locale) private var locale
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Label {
+                Text("Deletion of trip \(String(record.tripID.prefix(8)))… stopped before the server confirmed it.")
+            } icon: {
+                Image(systemName: "trash.slash")
+            }
+            .foregroundStyle(.orange)
+            Text(TripDeletionView.text(for: record.tripStatus))
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("Confirmed deleted: \(record.acknowledgedEvents) events")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text("Last attempt \(DateFormatting.time(record.updatedAt, locale: locale))")
+                .font(.caption2)
+                .foregroundStyle(.secondary)
+            Button("Resume") { resume() }
+                .font(.subheadline)
+                .buttonStyle(.borderless)
+        }
+        .multilineTextAlignment(.leading)
     }
 }

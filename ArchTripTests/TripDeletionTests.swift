@@ -56,8 +56,15 @@ struct TripDeletionTests {
 
     private let fast = TripDeletion.Configuration(pendingWritesTimeout: .milliseconds(10), batchTimeout: .milliseconds(10))
 
-    private func stopped(_ reason: TripDeletion.Stop.Reason, acknowledged: Int, trip: Bool) -> TripDeletionRun.State {
-        .stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripAcknowledged: trip))
+    private func stopped(_ reason: TripDeletion.Stop.Reason, acknowledged: Int, trip: TripDeletion.TripStatus) -> TripDeletionRun.State {
+        .stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripStatus: trip))
+    }
+
+    private func ledger() -> TripDeletionLedger {
+        let suite = "TripDeletionTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+        return TripDeletionLedger(defaults: defaults)
     }
 
     private func ids(_ count: Int) -> [String] { (0..<count).map { "e\($0)" } }
@@ -206,7 +213,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("stopped") { run.state == stopped(.batchFailed(.offline), acknowledged: 450, trip: false) }
+        await settle("stopped") { run.state == stopped(.batchFailed(.offline), acknowledged: 450, trip: .present) }
         #expect(deleter.batches.count == 2)
         #expect(deleter.batches.allSatisfy { !$0.andTrip }, "the Trip is never deleted before its Events")
 
@@ -237,7 +244,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 2, includesTrip: true), acknowledged: 0, trip: false) }
+        await settle("unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 2, includesTrip: true), acknowledged: 0, trip: .unknown) }
     }
 
     // MARK: Verification after the batches (review findings 1–3)
@@ -255,7 +262,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("verification failed") { run.state == stopped(.verificationFailed(.offline), acknowledged: 3, trip: true) }
+        await settle("verification failed") { run.state == stopped(.verificationFailed(.offline), acknowledged: 3, trip: .deletionAcknowledged) }
         #expect(deleter.batches.count == 1)
 
         deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
@@ -297,7 +304,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("leftovers") { run.state == stopped(.leftovers(events: 2, tripExists: false), acknowledged: 1 + 3 * 2, trip: true) }
+        await settle("leftovers") { run.state == stopped(.leftovers(events: 2, tripExists: false), acknowledged: 1 + 3 * 2, trip: .verifiedGone) }
         #expect(deleter.batches.count == 1 + fast.maxSweeps)
         #expect(deleter.inventoryCalls == 1 + fast.maxSweeps + 1, "a verification after every sweep, plus the last one")
     }
@@ -313,7 +320,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("last batch unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 101, includesTrip: true), acknowledged: 900, trip: false) }
+        await settle("last batch unconfirmed") { run.state == stopped(.batchUnconfirmed(events: 101, includesTrip: true), acknowledged: 900, trip: .unknown) }
 
         deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
         run.checkAgain()
@@ -334,7 +341,7 @@ struct TripDeletionTests {
         run.check()
         await settle("ready") { if case .ready = run.state { return true } else { return false } }
         run.delete()
-        await settle("sweep failed") { run.state == stopped(.batchFailed(.offline), acknowledged: 2, trip: true) }
+        await settle("sweep failed") { run.state == stopped(.batchFailed(.offline), acknowledged: 2, trip: .verifiedGone) }
 
         deleter.failingBatch = nil
         deleter.inventories = [
@@ -366,6 +373,146 @@ struct TripDeletionTests {
             FakeDeleter.Call(eventIDs: ids(2), andTrip: true),
             FakeDeleter.Call(eventIDs: ["late1", "late2"], andTrip: false),
         ])
+    }
+
+    // MARK: What is known about the Trip (review finding 2)
+
+    /// The Trip's status comes from listings and acknowledgements only. A sweep that
+    /// fails after a listing showed the Trip gone reports "verified gone", even though
+    /// no batch holding the Trip was acknowledged in this run.
+    @Test func tripStatusIsNeverInferredFromAMissingAcknowledgement() async {
+        let deleter = FakeDeleter()
+        // The Trip was already gone when the run started (an earlier unconfirmed batch applied).
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["orphan1", "orphan2"])),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["orphan2"])),
+        ]
+        deleter.failingBatch = 2
+        let run = run(deleter)
+        run.check()
+        await settle("ready") { run.state == .ready(TripDeletion.Summary(tripExists: false, eventCount: 2, unreadableEventCount: 0)) }
+        run.delete()
+        await settle("sweep failed") { run.state == stopped(.batchFailed(.offline), acknowledged: 2, trip: .verifiedGone) }
+
+        // A failed first batch with the Trip present: present, and nothing to follow up.
+        let intact = FakeDeleter()
+        intact.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(3)))]
+        intact.failingBatch = 1
+        let untouched = self.run(intact)
+        untouched.check()
+        await settle("ready") { if case .ready = untouched.state { return true } else { return false } }
+        untouched.delete()
+        await settle("stopped") { untouched.state == stopped(.batchFailed(.offline), acknowledged: 0, trip: .present) }
+        if case .stopped(let stop) = untouched.state { #expect(!stop.needsFollowUp) } else { Issue.record("stopped expected") }
+
+        // An unconfirmed batch holding the Trip: unknown until a listing says otherwise.
+        let unknown = FakeDeleter()
+        unknown.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(1)))]
+        unknown.failingBatch = 1
+        unknown.batchError = AccountError.timedOut
+        let pending = self.run(unknown)
+        pending.check()
+        await settle("ready") { if case .ready = pending.state { return true } else { return false } }
+        pending.delete()
+        await settle("unknown") { pending.state == stopped(.batchUnconfirmed(events: 1, includesTrip: true), acknowledged: 0, trip: .unknown) }
+        if case .stopped(let stop) = pending.state { #expect(stop.needsFollowUp) } else { Issue.record("stopped expected") }
+    }
+
+    // MARK: Ledger and resuming (review finding 1 and 3)
+
+    @Test func aStopThatSentSomethingIsRecordedAndAConfirmedDeletionErasesIt() async {
+        let ledger = ledger()
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(3))),
+            .failure(NSError(domain: "FIRFirestoreErrorDomain", code: 14)),
+        ]
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger, configuration: fast)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("verification failed") { run.state == stopped(.verificationFailed(.offline), acknowledged: 3, trip: .deletionAcknowledged) }
+        let record = ledger.records(for: "fixture-uid").first
+        #expect(record?.tripID == "fixture-trip")
+        #expect(record?.acknowledgedEvents == 3 && record?.tripStatus == .deletionAcknowledged && record?.reason == "verificationFailed")
+        #expect(ledger.records(for: "other-uid").isEmpty, "records are per account")
+
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
+        run.checkAgain()
+        await settle("done") { run.state == .done }
+        #expect(ledger.records(for: "fixture-uid").isEmpty, "a confirmed deletion needs no follow-up")
+    }
+
+    @Test func aStopThatSentNothingIsNotRecorded() async {
+        let ledger = ledger()
+        let deleter = FakeDeleter()
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(2)))]
+        deleter.failingBatch = 1
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger, configuration: fast)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("stopped") { run.state == stopped(.batchFailed(.offline), acknowledged: 0, trip: .present) }
+        #expect(ledger.records(for: "fixture-uid").isEmpty)
+    }
+
+    /// Trip gone → sweep failed → the screen closes (run dropped) → the app restarts (a
+    /// new ledger reads the same defaults) → Check again from the record → the server
+    /// lists nothing → done, record erased.
+    @Test func aStoppedDeletionIsResumedAfterARestartAndConfirmedEmpty() async {
+        let suite = "TripDeletionTests-restart-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defaults.removePersistentDomain(forName: suite)
+
+        let before = FakeDeleter()
+        before.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(2))),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
+        ]
+        before.failingBatch = 2
+        let firstLedger = TripDeletionLedger(defaults: defaults)
+        var run: TripDeletionRun? = TripDeletionRun(deleter: before, uid: "fixture-uid", tripID: "fixture-trip", ledger: firstLedger, configuration: fast)
+        run?.check()
+        await settle("ready") { if case .ready = run?.state { return true } else { return false } }
+        run?.delete()
+        await settle("sweep failed") { run?.state == stopped(.batchFailed(.offline), acknowledged: 2, trip: .verifiedGone) }
+        run?.cancel()
+        run = nil   // the screen is gone
+
+        // Restart: a fresh ledger from the same storage still lists the deletion.
+        let afterRestart = TripDeletionLedger(defaults: defaults)
+        let record = afterRestart.records(for: "fixture-uid").first
+        #expect(record?.tripID == "fixture-trip" && record?.tripStatus == .verifiedGone && record?.acknowledgedEvents == 2)
+
+        // The queued sweep applied meanwhile: the server lists nothing.
+        let after = FakeDeleter()
+        after.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
+        let resumed = TripDeletionRun(deleter: after, uid: "fixture-uid", tripID: record?.tripID ?? "", ledger: afterRestart, configuration: fast)
+        resumed.check()
+        await settle("confirmed empty") { resumed.state == .done }
+        #expect(after.batches.isEmpty)
+        #expect(afterRestart.records(for: "fixture-uid").isEmpty)
+        #expect(TripDeletionLedger(defaults: defaults).records(for: "fixture-uid").isEmpty, "erased in storage too")
+        defaults.removePersistentDomain(forName: suite)
+    }
+
+    /// The same, but the leftover is still there: the resumed run offers to delete only
+    /// the remaining Events (the Trip is verified gone), then confirms.
+    @Test func aStoppedDeletionResumedAfterARestartDeletesWhatRemains() async {
+        let ledger = ledger()
+        ledger.record(PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 2, tripStatus: .verifiedGone, reason: "batchFailed"), uid: "fixture-uid")
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: [])),
+        ]
+        let resumed = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger, configuration: fast)
+        resumed.check()
+        await settle("ready for the remaining event") { resumed.state == .ready(TripDeletion.Summary(tripExists: false, eventCount: 1, unreadableEventCount: 0)) }
+        resumed.delete()
+        await settle("done") { resumed.state == .done }
+        #expect(deleter.batches == [FakeDeleter.Call(eventIDs: ["late"], andTrip: false)])
+        #expect(ledger.records(for: "fixture-uid").isEmpty)
     }
 
     // MARK: Stale replies

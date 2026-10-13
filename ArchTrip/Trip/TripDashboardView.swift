@@ -28,7 +28,7 @@ struct TripDashboardView: View {
             }
         }
         .sheet(item: $deletionTarget) { trip in
-            TripDeletionView(trip: trip) {
+            TripDeletionView(tripID: trip.id, trip: trip) {
                 deletionTarget = nil
                 dismiss()
             }

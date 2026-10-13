@@ -871,6 +871,16 @@
         }
       }
     },
+    "Delete the %lld remaining events" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "残った予定%lld件を削除"
+          }
+        }
+      }
+    },
     "Delete this building?" : {
       "localizations" : {
         "ja" : {
@@ -959,12 +969,32 @@
         }
       }
     },
+    "Deletion of trip %@… stopped before the server confirmed it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張 %@… の削除はサーバー確認の前に止まりました。"
+          }
+        }
+      }
+    },
     "Deletion stopped." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除を中断しました。"
+          }
+        }
+      }
+    },
+    "Deletions to finish" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除が未完了の出張"
           }
         }
       }
@@ -1359,12 +1389,32 @@
         }
       }
     },
+    "ID %@…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "ID %@…"
+          }
+        }
+      }
+    },
     "Language" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "言語"
+          }
+        }
+      }
+    },
+    "Last attempt %@" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "最終試行 %@"
           }
         }
       }
@@ -1929,6 +1979,16 @@
         }
       }
     },
+    "Resume" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再開"
+          }
+        }
+      }
+    },
     "Retry" : {
       "localizations" : {
         "ja" : {
@@ -2309,6 +2369,16 @@
         }
       }
     },
+    "The server acknowledged the trip's deletion. Remaining events are deleted after checking again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張の削除はサーバーが確認済みです。残った予定は再確認後に削除できます。"
+          }
+        }
+      }
+    },
     "The server didn't accept the change, so it was undone on this device." : {
       "localizations" : {
         "ja" : {
@@ -2359,22 +2429,22 @@
         }
       }
     },
-    "The trip is deleted. Remaining events are deleted after checking again." : {
+    "The trip is no longer on the server (verified)." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "出張は削除済みです。残った予定は再確認後に削除できます。"
+            "value" : "出張はサーバー上にありません（確認済み）。"
           }
         }
       }
     },
-    "The trip is still there." : {
+    "The trip is still on the server (last listing)." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "出張は残っています。"
+            "value" : "出張はサーバーに残っています（最終確認時点）。"
           }
         }
       }
@@ -2435,6 +2505,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この匿名アカウントを端末間同期用アカウントへ変更します。現在のデータを保持したまま認証情報を追加します。"
+          }
+        }
+      }
+    },
+    "This deletion is kept in the trip list until the server confirms it, also after a restart." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この削除はサーバーが確認するまで出張一覧に残ります（再起動後も）。"
           }
         }
       }
@@ -2545,6 +2625,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "出張"
+          }
+        }
+      }
+    },
+    "Trip (deletion in progress)" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出張（削除を再開）"
           }
         }
       }
