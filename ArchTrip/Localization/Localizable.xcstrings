@@ -721,6 +721,16 @@
         }
       }
     },
+    "Clear this search's candidate" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索の候補をクリア"
+          }
+        }
+      }
+    },
     "Completed" : {
       "localizations" : {
         "ja" : {

@@ -276,6 +276,7 @@ struct LocalizationTests {
             "Pick another point": "別の地点を選ぶ",
             "Used for searching only. What is saved is decided after you pick a result.": "検索にだけ使います。保存される内容は候補を選んだ後に決まります。",
             "Only for this search. Not saved.": "この検索にだけ使われます。保存されません。",
+            "Clear this search's candidate": "この検索の候補をクリア",
         ]
         for (key, value) in expected {
             #expect(try japanese(key) == value, "\(key)")

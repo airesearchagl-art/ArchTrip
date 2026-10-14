@@ -136,6 +136,8 @@ updateData(["travelPoint": FieldValue.delete(),
   - 保存失敗: server 拒否（Rules・not-found 等）。既存アラートも出る。
 - 実装: `AppSession` が予定 ID ごとに最新の書込みトークン（再利用しない連番）と状態を持つ（`TravelPointWriteTracker`）。応答はトークンが最新のときだけ状態を変える。古い応答（先に送った書込みの遅い ACK／拒否）は、後の操作の表示を上書きしない。
 - 競合: 表示する設定はサーバーの適用結果（リスナー）に従う。ACK の到着順は使わない。拒否で SDK がその 1 件を取り消せばリスナーが復元後の値を届け、画面はそれに従う。
+- 画面内候補の対応付け（PR #17 レビュー反映）: 候補は `TravelPickedCandidate` として「予定 ID・選択時点の保存設定（settingAtPick）・選択が要求した設定（requestedSetting: savePlace→place、saveQuery→query、この検索だけ→settingAtPick）」に対応付ける。候補を表示するのは、リスナーの Event が settingAtPick（自分の書込みの反映前）か requestedSetting（反映後）を持つ間だけ。別画面・別端末からの query 変更・place 変更・解除・unreadable の受信は候補を破棄し、受信した設定を表示する。保存拒否はリスナーが settingAtPick を復元するため対応付けだけでは区別できず、書込みの「保存失敗」状態で候補を破棄する。candidate の破棄は endpoint の変化として `TravelRequestKey` を変え、旧結果を無効化する。
+- 2 種類のクリア: 候補行の「この検索の候補をクリア」は画面内候補を消すだけで何も送らない。Event に保存設定がある場合（query 保存後、またはこの検索だけの候補の背後に設定がある場合）は候補表示中でも「建築の場所に戻す／地点設定を解除」を併せて出し、専用更新の削除を送る。
 
 ## 4. 検索語の出所
 
@@ -313,7 +315,9 @@ updateData(["travelPoint": FieldValue.delete(),
 | 任意 | ID なし候補＋「保存する検索語」欄に利用者の文字列（≤200）＋保存して使う | `travelPoint=query`, `updatedAt` | `query(text)` | 候補をこの検索だけに使う＋説明＋同期中→保存完了／保存失敗 |
 | `query(text)` と同じ | ID なし候補＋欄が保存値のまま＋保存して使う | なし | 変化なし | 候補をこの検索だけに使う |
 | 任意 | ID なし候補＋欄が空（自動入力のみ／候補由来）または「この検索だけに使う」 | なし | 変化なし | 候補をこの検索だけに使う＋自動入力の説明 |
-| `place` / `query` / `unreadable` | 解除 | `travelPoint=delete`, `updatedAt` | なし | 建築既定／未確定へ、旧結果は無効化 |
+| `place` / `query` / `unreadable` | 解除（候補表示中でも可） | `travelPoint=delete`, `updatedAt` | なし | 建築既定／未確定へ、候補も消える、旧結果は無効化 |
+| 任意 | この検索の候補をクリア | なし | 変化なし | 画面内候補だけ消え、保存設定の表示に戻る |
+| 任意 | 別画面・別端末からの設定変更／解除／unreadable を受信 | なし | 受信した値 | 画面内候補を破棄し受信値を表示、旧結果は無効化 |
 | なし | 解除 | なし（ボタン無し） | なし | — |
 | 任意 | ピッカーのキャンセル | なし | 変化なし | — |
 | 任意 | 建築の関連付け・Place ID 変更／解除／削除 | なし（建築側の操作のみ） | 変化なし | 建築既定だけ追従。明示指定は維持＋優先表示 |
@@ -332,6 +336,7 @@ updateData(["travelPoint": FieldValue.delete(),
 | 単体（構造） | `Event` の encode に `travelPoint` キーが無い。`DocumentUpdate.fields(for:replacing:)` が `travelPoint` を送らず削除もしない（`optionalFields` 不変）。`setTravelPoint` の送信マップが `travelPoint` と `updatedAt` の 2 キーだけ。保存マップに候補の名称・住所・座標の文字列が現れない（番兵文字列） | `DocumentUpdateTests` 追加、新規 `TravelPointTests` |
 | 単体（出所） | §4.2 Q1〜Q14（Q5a/Q5b の分離、候補由来では欄が常に空） | 新規 `TravelPointTests`（「保存する検索語」欄の初期値と検証を純粋関数に切り出す） |
 | 単体（保存状態） | 書込みトークン: 最新の書込みの ACK／拒否だけが状態を変え、古い応答は後の操作の表示を上書きしない。同期中→保存完了／保存失敗 | 新規 `TravelPointTests`（`TravelPointWriteTracker`） |
+| 単体（候補の対応付け） | 自分の query 保存のローカル反映では候補を維持、query 変更・place 変更・解除・unreadable 受信で破棄、place 保存の反映後は保存済み行、この検索だけの候補は選択時の設定にだけ追従、保存拒否後は復元された設定を表示、破棄でキーが変わり旧結果が無効化 | `TravelPointTests`（`TravelPickedCandidate`／`TravelEndpoint.shown`） |
 | 単体（解決順） | 明示指定 > 建築 Place ID > 未確定、建築変更後も明示指定維持、`unreadable` で建築既定へ戻らない、解除ボタン文言の切替（建築既定あり／なし）、同一設定で無操作、設定変更で `TravelRequestKey` 不一致 | `TravelSearchTests` 追加 |
 | Rules 統合（gated） | `place`/`query` の受理、両キー・未知キー・空・上限超過・`kind` 不正・map でない値の拒否、従来形 Event の受理、`createdAt` 不変、2 項目だけの `updateData` が通る、解除の `delete` が通る | 新規 `FirebaseTravelPointIntegrationTests` |
 | 競合（gated） | 先に不正（129 文字 ID をテストから直接送る）→ 後に正常、両方 ACK 後にサーバー・ローカルとも後者。編集画面の全項目更新の前後で `travelPoint` が保持。オフラインで「編集→地点設定」「地点設定→編集」を積んで再接続後に両方残る。削除済み文書への設定が not-found で可視に失敗 | 同上 |

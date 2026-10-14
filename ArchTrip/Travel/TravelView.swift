@@ -34,12 +34,12 @@ struct TravelView: View {
     @State private var mode: TravelMode = .car
     @State private var anchorIsArrival = false
     @State private var anchorDate: Date
-    /// Results picked on this screen: shown until the listener delivers one as the saved
-    /// point, or for this search only when nothing was saved. Dropped with the screen.
-    @State private var fromCandidate: PlaceResult?
-    @State private var toCandidate: PlaceResult?
-    @State private var fromOutcome: TravelPickOutcome?
-    @State private var toOutcome: TravelPickOutcome?
+    /// Results picked on this screen, each bound to the Event and to the setting it was
+    /// picked against (`TravelPickedCandidate`): shown while the Event still holds that
+    /// setting or the one the pick requested, dropped when the listener delivers anything
+    /// else or the write fails. Dropped with the screen.
+    @State private var fromCandidate: TravelPickedCandidate?
+    @State private var toCandidate: TravelPickedCandidate?
     @State private var picking: Side?
     @State private var search = TravelSearch(router: MapKitTravelRouter())
 
@@ -72,20 +72,23 @@ struct TravelView: View {
         side == .from ? fromEvent : toEvent
     }
 
-    private func candidate(_ side: Side) -> PlaceResult? {
+    private func candidate(_ side: Side) -> TravelPickedCandidate? {
         side == .from ? fromCandidate : toCandidate
     }
 
-    private func setCandidate(_ result: PlaceResult?, _ side: Side) {
-        if side == .from { fromCandidate = result } else { toCandidate = result }
+    private func setCandidate(_ candidate: TravelPickedCandidate?, _ side: Side) {
+        if side == .from { fromCandidate = candidate } else { toCandidate = candidate }
     }
 
-    private func outcome(_ side: Side) -> TravelPickOutcome? {
-        side == .from ? fromOutcome : toOutcome
-    }
-
-    private func setOutcome(_ outcome: TravelPickOutcome?, _ side: Side) {
-        if side == .from { fromOutcome = outcome } else { toOutcome = outcome }
+    /// Drops a picked result once the listener delivers a setting it was not picked
+    /// against and did not request (another screen or device changed, cleared or broke
+    /// the setting), so nothing new is hidden behind an old candidate.
+    private func reconcileCandidates() {
+        for side in [Side.from, .to] {
+            guard let candidate = candidate(side) else { continue }
+            if let event = event(side), candidate.applies(to: event) { continue }
+            setCandidate(nil, side)
+        }
     }
 
     /// What the Event and its Building hold, as the listener delivers them.
@@ -95,12 +98,8 @@ struct TravelView: View {
     }
 
     private func endpoint(_ side: Side) -> TravelEndpoint? {
-        guard let stored = stored(side) else { return nil }
-        guard let candidate = candidate(side) else { return stored }
-        // A picked result stays on screen until the listener delivers the Event with it
-        // as the saved point; one that was not saved stays for this search.
-        if case .savedPlace(let placeID) = stored, candidate.identifier == placeID { return stored }
-        return .candidate(candidate)
+        guard let event = event(side), let stored = stored(side) else { return nil }
+        return TravelEndpoint.shown(stored: stored, candidate: candidate(side), event: event)
     }
 
     /// The Building's place, whatever the Event's own setting: what "Back to the
@@ -186,14 +185,15 @@ struct TravelView: View {
             }
             .onChange(of: fromID) {
                 fromCandidate = nil
-                fromOutcome = nil
                 resetAnchorDate()
             }
             .onChange(of: toID) {
                 toCandidate = nil
-                toOutcome = nil
                 resetAnchorDate()
             }
+            // What the listener delivers decides what is shown; an old candidate never
+            // covers a setting that changed elsewhere.
+            .onChange(of: events) { reconcileCandidates() }
             .onChange(of: anchorIsArrival) { resetAnchorDate() }
             // Any change of the inputs abandons a search for the old ones; a result that
             // already arrived is kept and shown as stale.
@@ -242,17 +242,16 @@ struct TravelView: View {
         case .thisSearchOnly:
             break
         }
-        setCandidate(result, side)
-        setOutcome(outcome, side)
+        setCandidate(TravelPickedCandidate(result: result, outcome: outcome, eventID: event.id, settingAtPick: event.travelPoint), side)
     }
 
-    /// Clears the Event's travel point (its own two-field update); the Building's place
-    /// or nothing is used again. Sent only when the listener shows a setting to clear.
+    /// Clears the Event's saved travel point (its own two-field update); the Building's
+    /// place or nothing is used again. Sent only when the listener shows a setting to
+    /// clear. This is not the same as dropping a result picked for this search.
     private func clearSetting(_ side: Side) {
         guard let event = event(side), event.travelPoint != nil else { return }
         session.setTravelPoint(nil, for: event)
         setCandidate(nil, side)
-        setOutcome(nil, side)
     }
 
     // MARK: Sections
@@ -351,15 +350,18 @@ struct TravelView: View {
                 }
                 outcomeRow(side)
                 statusRow(side)
+                // Two different things can be cleared here: the result picked for this
+                // search (screen only), and, when the Event holds a setting (a saved
+                // query, or one the pick did not touch), that saved setting itself.
                 HStack(spacing: 16) {
                     Button("Change") { picking = side }
-                    Button("Clear", role: .destructive) {
-                        setCandidate(nil, side)
-                        setOutcome(nil, side)
-                    }
+                    Button("Clear this search's candidate", role: .destructive) { setCandidate(nil, side) }
                 }
                 .font(.subheadline)
                 .buttonStyle(.borderless)
+                if event(side)?.travelPoint != nil {
+                    clearSettingButton(side)
+                }
             case .unresolved:
                 Label("No usable point yet. Pick a candidate for this search.", systemImage: "mappin.slash")
                     .foregroundStyle(.secondary)
@@ -378,13 +380,20 @@ struct TravelView: View {
     /// Change or clear the Event's saved setting. The clear button says where it goes back
     /// to: the Building's place when the Building has one, else nothing.
     private func settingButtons(_ side: Side, change: LocalizedStringKey) -> some View {
-        let clearTitle: LocalizedStringKey = buildingDefault(side) != nil ? "Back to the building's place" : "Clear the point setting"
-        return HStack(spacing: 16) {
+        HStack(spacing: 16) {
             Button(change) { picking = side }
-            Button(clearTitle, role: .destructive) { clearSetting(side) }
+            clearSettingButton(side)
         }
         .font(.subheadline)
         .buttonStyle(.borderless)
+    }
+
+    /// Clears the Event's saved setting; the title says where that goes back to.
+    private func clearSettingButton(_ side: Side) -> some View {
+        let clearTitle: LocalizedStringKey = buildingDefault(side) != nil ? "Back to the building's place" : "Clear the point setting"
+        return Button(clearTitle, role: .destructive) { clearSetting(side) }
+            .font(.subheadline)
+            .buttonStyle(.borderless)
     }
 
     /// A stored value over this version's bound: shown and used, but the Event cannot be
@@ -430,7 +439,7 @@ struct TravelView: View {
 
     @ViewBuilder
     private func outcomeRow(_ side: Side) -> some View {
-        switch outcome(side) {
+        switch candidate(side)?.outcome {
         case .saveQuery:
             Text("Only the search text you typed is saved. You'll pick a candidate again next time.")
                 .font(.caption)

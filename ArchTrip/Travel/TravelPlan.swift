@@ -119,6 +119,51 @@ nonisolated enum TravelEndpoint: Hashable, Sendable {
     }
 }
 
+/// A result picked on the travel screen, bound to the Event and to the setting the Event
+/// held when it was picked, so that a change arriving from elsewhere (another screen or
+/// device changing, clearing or breaking the setting) is never hidden behind it. The
+/// candidate applies only while the Event holds the setting it was picked against (the
+/// user's own write not yet reflected locally) or the one its pick requested (reflected).
+/// Anything else delivered by the listener drops it. A rejected save restores the
+/// setting it was picked against, which this alone cannot tell from an unreflected
+/// write; the screen drops the candidate on the write's failed state.
+nonisolated struct TravelPickedCandidate: Hashable, Sendable {
+    let result: PlaceResult
+    let outcome: TravelPickOutcome
+    let eventID: String
+    /// The Event's setting at the moment of the pick.
+    let settingAtPick: TravelPointSetting?
+
+    /// The setting the pick asked the Event to hold; for a pick that saves nothing, the
+    /// one the Event had.
+    var requestedSetting: TravelPointSetting? {
+        switch outcome {
+        case .savePlace(let id): .place(id: id)
+        case .saveQuery(let text): .query(text)
+        case .thisSearchOnly: settingAtPick
+        }
+    }
+
+    /// Whether the candidate still belongs to what the listener delivers for the Event.
+    func applies(to event: Event) -> Bool {
+        event.id == eventID && (event.travelPoint == settingAtPick || event.travelPoint == requestedSetting)
+    }
+}
+
+extension TravelEndpoint {
+    /// What one side shows: the stored endpoint, unless a candidate still applies to the
+    /// Event. A saved place the listener already reflects is shown from the Event
+    /// (fetched by its ID) rather than as the picked result; a saved query and a pick
+    /// used for this search only keep the picked result on screen.
+    static func shown(stored: TravelEndpoint, candidate: TravelPickedCandidate?, event: Event) -> TravelEndpoint {
+        guard let candidate, candidate.applies(to: event) else { return stored }
+        if case .savePlace(let id) = candidate.outcome, case .savedPlace(let placeID) = stored, placeID == id {
+            return stored
+        }
+        return .candidate(candidate.result)
+    }
+}
+
 /// Everything a result depends on. A result is shown only while the key it was computed
 /// for equals the key of what is on screen: a changed Event or Building (`updatedAt`), a
 /// changed Place ID, a re-picked point, another mode or another time all make it stale.

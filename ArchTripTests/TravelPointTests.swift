@@ -297,4 +297,86 @@ struct TravelPointTests {
         #expect(before != key(linked, updatedAt: date.addingTimeInterval(1)), "updatedAt changed by the two-field update")
         #expect(before == key(linked, updatedAt: date))
     }
+
+    // MARK: A picked result is bound to the setting it was picked against (PR #17 review)
+
+    private let picked = PlaceResult(kind: .address, name: "", address: "架空県架空市架空町一丁目", latitude: 43.1, longitude: 141.1, identifier: nil)
+    private let pickedWithID = PlaceResult(kind: .pointOfInterest, name: "Fixture hall", address: "", latitude: 43.1, longitude: 141.1, identifier: "IPICKED0000000001")
+
+    private func shown(_ candidate: TravelPickedCandidate?, for event: Event) -> TravelEndpoint {
+        TravelEndpoint.shown(stored: TravelEndpoint.resolve(event: event, buildings: []), candidate: candidate, event: event)
+    }
+
+    /// The user's own query save: the candidate stays while the Event still holds what it
+    /// held at the pick (write not reflected yet) and once it holds what the pick requested.
+    @Test func aQuerySaveKeepsItsCandidateThroughTheLocalReflection() {
+        let candidate = TravelPickedCandidate(result: picked, outcome: .saveQuery("架空駅"), eventID: "a", settingAtPick: nil)
+        #expect(candidate.requestedSetting == .query("架空駅"))
+        let before = event("a", location: "Fixture hall")
+        #expect(candidate.applies(to: before) && shown(candidate, for: before) == .candidate(picked))
+        let reflected = event("a", location: "Fixture hall", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(1))
+        #expect(candidate.applies(to: reflected) && shown(candidate, for: reflected) == .candidate(picked))
+    }
+
+    /// A query change, a place change, a clear or a broken setting arriving from elsewhere
+    /// drops the candidate: what the listener delivers is shown.
+    @Test func aCandidateIsDroppedWhenAnotherSettingArrives() {
+        let candidate = TravelPickedCandidate(result: picked, outcome: .saveQuery("架空駅"), eventID: "a", settingAtPick: .place(id: "IOLD0000000000001"))
+        let arrivals: [(label: String, setting: TravelPointSetting?)] = [
+            ("query changed elsewhere", .query("別の駅")),
+            ("place changed elsewhere", .place(id: "INEW0000000000001")),
+            ("cleared elsewhere", nil),
+            ("broken elsewhere", .unreadable(reason: "unexpected keys")),
+        ]
+        for arrival in arrivals {
+            let event = event("a", travelPoint: arrival.setting)
+            #expect(!candidate.applies(to: event), "\(arrival.label)")
+            #expect(shown(candidate, for: event) == TravelEndpoint.resolve(event: event, buildings: []), "\(arrival.label): the listener's setting shows, not the old candidate")
+        }
+        #expect(!candidate.applies(to: event("b", travelPoint: .place(id: "IOLD0000000000001"))), "another Event")
+        #expect(shown(candidate, for: event("a", travelPoint: .query("架空駅"))) == .candidate(picked), "the requested setting keeps it")
+    }
+
+    @Test func aPlaceSaveShowsTheStoredRowOnceReflected() {
+        let candidate = TravelPickedCandidate(result: pickedWithID, outcome: .savePlace(id: "IPICKED0000000001"), eventID: "a", settingAtPick: nil)
+        #expect(shown(candidate, for: event("a")) == .candidate(pickedWithID), "until the write is reflected, the picked result shows")
+        #expect(shown(candidate, for: event("a", travelPoint: .place(id: "IPICKED0000000001"))) == .savedPlace(placeID: "IPICKED0000000001"), "then the saved place, fetched by its ID")
+        #expect(shown(candidate, for: event("a", travelPoint: .place(id: "IOTHER00000000001"))) == .savedPlace(placeID: "IOTHER00000000001"), "a different place from elsewhere is shown, not the candidate")
+    }
+
+    @Test func aThisSearchOnlyCandidateFollowsOnlyTheSettingItWasPickedAgainst() {
+        let candidate = TravelPickedCandidate(result: picked, outcome: .thisSearchOnly(.notSaved), eventID: "a", settingAtPick: .query("架空駅"))
+        #expect(candidate.requestedSetting == .query("架空駅"))
+        #expect(candidate.applies(to: event("a", travelPoint: .query("架空駅"))))
+        #expect(candidate.applies(to: event("a", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(60))), "another field edited: the setting is unchanged")
+        #expect(!candidate.applies(to: event("a")), "cleared elsewhere")
+        #expect(!candidate.applies(to: event("a", travelPoint: .place(id: "I1"))), "replaced elsewhere")
+        #expect(!candidate.applies(to: event("a", travelPoint: .unreadable(reason: "x"))), "broken elsewhere")
+    }
+
+    /// A rejected save restores the setting the result was picked against, which this
+    /// binding alone cannot tell from a write not reflected yet; the screen drops the
+    /// candidate on the write's failed state, after which the restored setting shows.
+    @Test func aRejectedSaveRestoresTheSettingTheCandidateWasPickedAgainst() {
+        let candidate = TravelPickedCandidate(result: pickedWithID, outcome: .savePlace(id: "IPICKED0000000001"), eventID: "a", settingAtPick: .place(id: "IOLD0000000000001"))
+        let restored = event("a", travelPoint: .place(id: "IOLD0000000000001"))
+        #expect(candidate.applies(to: restored))
+        #expect(shown(nil, for: restored) == .savedPlace(placeID: "IOLD0000000000001"), "once dropped, the restored setting is what shows")
+    }
+
+    /// Dropping a candidate changes the endpoint and so the key: a result computed with
+    /// the old candidate is shown as stale.
+    @Test func droppingACandidateMakesTheKeyStale() {
+        func key(_ to: TravelEndpoint) -> TravelRequestKey {
+            TravelRequestKey(
+                fromEventID: "a", fromEventUpdatedAt: date, from: .savedPlace(placeID: "I1"),
+                toEventID: "b", toEventUpdatedAt: date, to: to, mode: .car, anchor: .departAt(date)
+            )
+        }
+        let candidate = TravelPickedCandidate(result: picked, outcome: .thisSearchOnly(.notSaved), eventID: "b", settingAtPick: nil)
+        let before = shown(candidate, for: event("b", location: "Fixture hall"))
+        let after = shown(candidate, for: event("b", location: "Fixture hall", travelPoint: .query("架空駅")))
+        #expect(before == .candidate(picked) && after == .savedQuery("架空駅"))
+        #expect(key(before) != key(after))
+    }
 }
