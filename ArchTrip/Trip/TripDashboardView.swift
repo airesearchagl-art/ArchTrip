@@ -4,6 +4,7 @@ struct TripDashboardView: View {
     let tripID: String
 
     @Environment(AppSession.self) private var session
+    @Environment(\.dismiss) private var dismiss
     @Environment(\.locale) private var locale
     @State private var events: [Event] = []
     @State private var eventFailures: [DecodeFailure] = []
@@ -12,6 +13,9 @@ struct TripDashboardView: View {
     @State private var selectedDay: Date?
     @State private var editorTarget: EventEditorTarget?
     @State private var editingTrip = false
+    /// RF-03: the Trip being deleted. Attached outside `dashboard(_:)` so the sheet
+    /// survives the Trip vanishing from the list while its batches are acknowledged.
+    @State private var deletionTarget: Trip?
 
     private let calendar = Calendar.current
 
@@ -21,6 +25,12 @@ struct TripDashboardView: View {
                 dashboard(trip)
             } else {
                 ContentUnavailableView("Trip not found", systemImage: "suitcase")
+            }
+        }
+        .sheet(item: $deletionTarget) { trip in
+            TripDeletionView(tripID: trip.id, trip: trip) {
+                deletionTarget = nil
+                dismiss()
             }
         }
         .task(id: tripID) {
@@ -69,6 +79,13 @@ struct TripDashboardView: View {
                     editingTrip = true
                 } label: {
                     Label("Edit Trip", systemImage: "pencil")
+                }
+            }
+            ToolbarItem(placement: .secondaryAction) {
+                Button(role: .destructive) {
+                    deletionTarget = trip
+                } label: {
+                    Label("Delete Trip", systemImage: "trash")
                 }
             }
         }

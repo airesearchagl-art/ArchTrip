@@ -3,12 +3,38 @@ import SwiftUI
 struct TripListView: View {
     @Environment(AppSession.self) private var session
     @State private var showingNewTrip = false
+    /// RF-03: a stopped deletion being resumed from its ledger record.
+    @State private var resumingDeletion: PendingTripDeletion?
 
     var body: some View {
         let partition = Trip.partition(session.trips, today: Date(), calendar: .current)
+        let pending = session.pendingTripDeletions
         List {
             if !session.tripFailures.isEmpty {
                 DecodeFailureSection(failures: session.tripFailures)
+            }
+            // RF-03: a record file that cannot be read is shown, kept as it is, and never
+            // replaced; deletions do not start until a reload succeeds.
+            if session.deletionLedger.isUnreadable {
+                Section {
+                    Label("The deletion records can't be read. Deletions can't be started.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("The record file is kept as it is. Reload to try again.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Reload") { session.deletionLedger.reload() }
+                }
+            }
+            // Deletions that stopped after something was sent stay here, across screens
+            // and restarts, until a server listing confirms nothing is left.
+            if !pending.isEmpty {
+                Section {
+                    ForEach(pending) { record in
+                        PendingTripDeletionRow(record: record) { resumingDeletion = record }
+                    }
+                } header: {
+                    Text("Deletions to finish")
+                }
             }
             if session.tripsLoadFailed {
                 Label("Couldn't load data", systemImage: "exclamationmark.triangle")
@@ -36,7 +62,7 @@ struct TripListView: View {
         .overlay {
             if !session.hasLoadedTrips {
                 ProgressView()
-            } else if session.trips.isEmpty && session.tripFailures.isEmpty && !session.tripsLoadFailed {
+            } else if session.trips.isEmpty && session.tripFailures.isEmpty && !session.tripsLoadFailed && pending.isEmpty && !session.deletionLedger.isUnreadable {
                 ContentUnavailableView {
                     Label("No trips yet", systemImage: "suitcase")
                 } description: {
@@ -58,6 +84,11 @@ struct TripListView: View {
         }
         .sheet(isPresented: $showingNewTrip) {
             TripEditorView(trip: nil)
+        }
+        .sheet(item: $resumingDeletion) { record in
+            TripDeletionView(tripID: record.tripID, trip: session.trip(id: record.tripID)) {
+                resumingDeletion = nil
+            }
         }
     }
 }
