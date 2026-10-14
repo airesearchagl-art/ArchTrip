@@ -80,14 +80,14 @@ struct TravelView: View {
         if side == .from { fromCandidate = candidate } else { toCandidate = candidate }
     }
 
-    /// Drops a picked result once the listener delivers a setting it was not picked
-    /// against and did not request (another screen or device changed, cleared or broke
-    /// the setting), so nothing new is hidden behind an old candidate.
+    /// Follows the listener for each picked result: records that the setting its pick
+    /// requested has been delivered, and drops it once the Event holds anything else
+    /// (another screen or device changed, cleared or broke the setting, or reverted it
+    /// after the reflection), so nothing new is hidden behind an old candidate.
     private func reconcileCandidates() {
         for side in [Side.from, .to] {
             guard let candidate = candidate(side) else { continue }
-            if let event = event(side), candidate.applies(to: event) { continue }
-            setCandidate(nil, side)
+            setCandidate(event(side).flatMap { candidate.reconciled(with: $0) }, side)
         }
     }
 

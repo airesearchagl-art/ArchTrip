@@ -354,14 +354,73 @@ struct TravelPointTests {
         #expect(!candidate.applies(to: event("a", travelPoint: .unreadable(reason: "x"))), "broken elsewhere")
     }
 
-    /// A rejected save restores the setting the result was picked against, which this
-    /// binding alone cannot tell from a write not reflected yet; the screen drops the
-    /// candidate on the write's failed state, after which the restored setting shows.
-    @Test func aRejectedSaveRestoresTheSettingTheCandidateWasPickedAgainst() {
+    /// A rejected save before any reflection restores the setting the result was picked
+    /// against, which the binding alone cannot tell from a write not reflected yet; the
+    /// screen drops the candidate on the write's failed state, after which the restored
+    /// setting shows. After a reflection, the same restore drops it by itself.
+    @Test func aRejectedSaveRestoresTheSettingTheCandidateWasPickedAgainst() throws {
         let candidate = TravelPickedCandidate(result: pickedWithID, outcome: .savePlace(id: "IPICKED0000000001"), eventID: "a", settingAtPick: .place(id: "IOLD0000000000001"))
         let restored = event("a", travelPoint: .place(id: "IOLD0000000000001"))
-        #expect(candidate.applies(to: restored))
-        #expect(shown(nil, for: restored) == .savedPlace(placeID: "IOLD0000000000001"), "once dropped, the restored setting is what shows")
+        #expect(candidate.applies(to: restored), "before any reflection, indistinguishable from an unreflected write")
+        #expect(shown(nil, for: restored) == .savedPlace(placeID: "IOLD0000000000001"), "once dropped on the failed state, the restored setting is what shows")
+        let reflected = try #require(candidate.reconciled(with: event("a", travelPoint: .place(id: "IPICKED0000000001"))))
+        #expect(reflected.reconciled(with: restored) == nil, "after the reflection, the restore itself drops the candidate")
+    }
+
+    // MARK: Timelines: the reflection is recorded, and only the requested setting keeps the candidate afterwards
+
+    /// nil → the saved query reflected → cleared elsewhere: the candidate goes with the clear.
+    @Test func timelineNilThenQueryReflectedThenClearedElsewhere() throws {
+        var candidate = TravelPickedCandidate(result: picked, outcome: .saveQuery("架空駅"), eventID: "a", settingAtPick: nil)
+        #expect(!candidate.isReflected)
+        let unreflected = event("a", location: "Fixture hall")
+        candidate = try #require(candidate.reconciled(with: unreflected), "nil: the write is not reflected yet")
+        #expect(!candidate.isReflected && shown(candidate, for: unreflected) == .candidate(picked))
+        let reflected = event("a", location: "Fixture hall", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(1))
+        candidate = try #require(candidate.reconciled(with: reflected), "query: the own save is reflected")
+        #expect(candidate.isReflected && shown(candidate, for: reflected) == .candidate(picked))
+        let clearedElsewhere = event("a", location: "Fixture hall", updatedAt: date.addingTimeInterval(2))
+        #expect(candidate.reconciled(with: clearedElsewhere) == nil, "nil again, after the reflection: not the unreflected state any more but a clear from elsewhere")
+        #expect(shown(candidate, for: clearedElsewhere) == .unresolved(hint: "Fixture hall"))
+    }
+
+    /// A → B reflected → A from elsewhere: a return to the setting picked against drops the candidate.
+    @Test func timelineAThenBReflectedThenAFromElsewhere() throws {
+        let a = TravelPointSetting.place(id: "IPLACEA0000000001")
+        let b = TravelPointSetting.place(id: "IPLACEB0000000001")
+        let pickedB = PlaceResult(kind: .pointOfInterest, name: "Fixture B", address: "", latitude: 43.2, longitude: 141.2, identifier: "IPLACEB0000000001")
+        var candidate = TravelPickedCandidate(result: pickedB, outcome: .savePlace(id: "IPLACEB0000000001"), eventID: "a", settingAtPick: a)
+        let stillA = event("a", travelPoint: a)
+        candidate = try #require(candidate.reconciled(with: stillA), "A: picked against, not reflected yet")
+        #expect(!candidate.isReflected && shown(candidate, for: stillA) == .candidate(pickedB))
+        let nowB = event("a", travelPoint: b, updatedAt: date.addingTimeInterval(1))
+        candidate = try #require(candidate.reconciled(with: nowB), "B: reflected")
+        #expect(candidate.isReflected && shown(candidate, for: nowB) == .savedPlace(placeID: "IPLACEB0000000001"))
+        let backToA = event("a", travelPoint: a, updatedAt: date.addingTimeInterval(2))
+        #expect(candidate.reconciled(with: backToA) == nil, "A again, after the reflection: a change from elsewhere, not the unreflected state")
+        #expect(shown(candidate, for: backToA) == .savedPlace(placeID: "IPLACEA0000000001"))
+    }
+
+    /// Edits of other fields, before and after the reflection, keep the candidate.
+    @Test func otherFieldEditsKeepTheCandidateBeforeAndAfterTheReflection() throws {
+        var candidate = TravelPickedCandidate(result: picked, outcome: .saveQuery("架空駅"), eventID: "a", settingAtPick: .place(id: "IOLD0000000000001"))
+        var titleEdited = event("a", travelPoint: .place(id: "IOLD0000000000001"), updatedAt: date.addingTimeInterval(1))
+        titleEdited.title = "Fixture edited"
+        candidate = try #require(candidate.reconciled(with: titleEdited), "another field changed before the reflection")
+        #expect(!candidate.isReflected)
+        candidate = try #require(candidate.reconciled(with: event("a", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(2))))
+        #expect(candidate.isReflected)
+        var noteEdited = event("a", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(3))
+        noteEdited.note = "Fixture note"
+        noteEdited.locationName = "Fixture location"
+        let kept = try #require(candidate.reconciled(with: noteEdited), "other fields changed after the reflection")
+        #expect(kept.isReflected && shown(kept, for: noteEdited) == .candidate(picked))
+        // A pick that saves nothing is reflected at once and follows only its setting.
+        var onlyHere = TravelPickedCandidate(result: picked, outcome: .thisSearchOnly(.notSaved), eventID: "a", settingAtPick: .query("架空駅"))
+        onlyHere = try #require(onlyHere.reconciled(with: noteEdited))
+        #expect(onlyHere.isReflected)
+        #expect(onlyHere.reconciled(with: event("a", travelPoint: .query("架空駅"), updatedAt: date.addingTimeInterval(4))) != nil)
+        #expect(onlyHere.reconciled(with: event("a", updatedAt: date.addingTimeInterval(5))) == nil, "cleared elsewhere")
     }
 
     /// Dropping a candidate changes the endpoint and so the key: a result computed with

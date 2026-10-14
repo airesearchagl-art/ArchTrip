@@ -121,18 +121,31 @@ nonisolated enum TravelEndpoint: Hashable, Sendable {
 
 /// A result picked on the travel screen, bound to the Event and to the setting the Event
 /// held when it was picked, so that a change arriving from elsewhere (another screen or
-/// device changing, clearing or breaking the setting) is never hidden behind it. The
-/// candidate applies only while the Event holds the setting it was picked against (the
-/// user's own write not yet reflected locally) or the one its pick requested (reflected).
-/// Anything else delivered by the listener drops it. A rejected save restores the
-/// setting it was picked against, which this alone cannot tell from an unreflected
-/// write; the screen drops the candidate on the write's failed state.
+/// device changing, clearing or breaking the setting) is never hidden behind it.
+///
+/// The candidate follows the listener in two phases. Until the setting its pick
+/// requested has been delivered, the Event may still hold the setting it was picked
+/// against (the user's own write not reflected locally yet). Once the requested setting
+/// has been delivered (`isReflected`), only that setting keeps the candidate: anything
+/// else, including a return to the setting it was picked against, drops it. A rejected
+/// save before any reflection restores the setting it was picked against, which this
+/// alone cannot tell from an unreflected write; the screen also drops the candidate on
+/// the write's failed state.
 nonisolated struct TravelPickedCandidate: Hashable, Sendable {
     let result: PlaceResult
     let outcome: TravelPickOutcome
     let eventID: String
     /// The Event's setting at the moment of the pick.
     let settingAtPick: TravelPointSetting?
+    /// Set once the listener has delivered the Event holding the requested setting.
+    private(set) var isReflected = false
+
+    init(result: PlaceResult, outcome: TravelPickOutcome, eventID: String, settingAtPick: TravelPointSetting?) {
+        self.result = result
+        self.outcome = outcome
+        self.eventID = eventID
+        self.settingAtPick = settingAtPick
+    }
 
     /// The setting the pick asked the Event to hold; for a pick that saves nothing, the
     /// one the Event had.
@@ -144,9 +157,23 @@ nonisolated struct TravelPickedCandidate: Hashable, Sendable {
         }
     }
 
+    /// The candidate as it stands after the listener delivered `event`, or nil when it
+    /// no longer belongs to what the Event holds. Only the travel point is looked at: an
+    /// edit of any other field keeps the candidate.
+    func reconciled(with event: Event) -> TravelPickedCandidate? {
+        guard event.id == eventID else { return nil }
+        if event.travelPoint == requestedSetting {
+            var reflected = self
+            reflected.isReflected = true
+            return reflected
+        }
+        if !isReflected, event.travelPoint == settingAtPick { return self }
+        return nil
+    }
+
     /// Whether the candidate still belongs to what the listener delivers for the Event.
     func applies(to event: Event) -> Bool {
-        event.id == eventID && (event.travelPoint == settingAtPick || event.travelPoint == requestedSetting)
+        reconciled(with: event) != nil
     }
 }
 

@@ -136,7 +136,7 @@ updateData(["travelPoint": FieldValue.delete(),
   - 保存失敗: server 拒否（Rules・not-found 等）。既存アラートも出る。
 - 実装: `AppSession` が予定 ID ごとに最新の書込みトークン（再利用しない連番）と状態を持つ（`TravelPointWriteTracker`）。応答はトークンが最新のときだけ状態を変える。古い応答（先に送った書込みの遅い ACK／拒否）は、後の操作の表示を上書きしない。
 - 競合: 表示する設定はサーバーの適用結果（リスナー）に従う。ACK の到着順は使わない。拒否で SDK がその 1 件を取り消せばリスナーが復元後の値を届け、画面はそれに従う。
-- 画面内候補の対応付け（PR #17 レビュー反映）: 候補は `TravelPickedCandidate` として「予定 ID・選択時点の保存設定（settingAtPick）・選択が要求した設定（requestedSetting: savePlace→place、saveQuery→query、この検索だけ→settingAtPick）」に対応付ける。候補を表示するのは、リスナーの Event が settingAtPick（自分の書込みの反映前）か requestedSetting（反映後）を持つ間だけ。別画面・別端末からの query 変更・place 変更・解除・unreadable の受信は候補を破棄し、受信した設定を表示する。保存拒否はリスナーが settingAtPick を復元するため対応付けだけでは区別できず、書込みの「保存失敗」状態で候補を破棄する。candidate の破棄は endpoint の変化として `TravelRequestKey` を変え、旧結果を無効化する。
+- 画面内候補の対応付け（PR #17 レビュー反映）: 候補は `TravelPickedCandidate` として「予定 ID・選択時点の保存設定（settingAtPick）・選択が要求した設定（requestedSetting: savePlace→place、saveQuery→query、この検索だけ→settingAtPick）・反映済みフラグ（isReflected）」を持つ。リスナーの Event を受けるたびに `reconciled(with:)` で更新する: Event が requestedSetting を持てば反映済みとして維持、反映前に settingAtPick を持てば維持（自分の書込みの反映待ち）、それ以外は破棄。反映後は requestedSetting 以外（settingAtPick へ戻った場合を含む）で破棄するため、「nil→query 反映→外部で解除」「A→B 反映→外部で A」のどちらも候補を消し受信値を表示する。他項目だけの変更（updatedAt・title 等）は travelPoint を見ないため維持。保存拒否は反映前にリスナーが settingAtPick を復元するため対応付けだけでは区別できず、書込みの「保存失敗」状態でも候補を破棄する（反映後の復元は対応付けだけで破棄される）。候補の破棄は endpoint の変化として `TravelRequestKey` を変え、旧結果を無効化する。
 - 2 種類のクリア: 候補行の「この検索の候補をクリア」は画面内候補を消すだけで何も送らない。Event に保存設定がある場合（query 保存後、またはこの検索だけの候補の背後に設定がある場合）は候補表示中でも「建築の場所に戻す／地点設定を解除」を併せて出し、専用更新の削除を送る。
 
 ## 4. 検索語の出所
@@ -336,7 +336,7 @@ updateData(["travelPoint": FieldValue.delete(),
 | 単体（構造） | `Event` の encode に `travelPoint` キーが無い。`DocumentUpdate.fields(for:replacing:)` が `travelPoint` を送らず削除もしない（`optionalFields` 不変）。`setTravelPoint` の送信マップが `travelPoint` と `updatedAt` の 2 キーだけ。保存マップに候補の名称・住所・座標の文字列が現れない（番兵文字列） | `DocumentUpdateTests` 追加、新規 `TravelPointTests` |
 | 単体（出所） | §4.2 Q1〜Q14（Q5a/Q5b の分離、候補由来では欄が常に空） | 新規 `TravelPointTests`（「保存する検索語」欄の初期値と検証を純粋関数に切り出す） |
 | 単体（保存状態） | 書込みトークン: 最新の書込みの ACK／拒否だけが状態を変え、古い応答は後の操作の表示を上書きしない。同期中→保存完了／保存失敗 | 新規 `TravelPointTests`（`TravelPointWriteTracker`） |
-| 単体（候補の対応付け） | 自分の query 保存のローカル反映では候補を維持、query 変更・place 変更・解除・unreadable 受信で破棄、place 保存の反映後は保存済み行、この検索だけの候補は選択時の設定にだけ追従、保存拒否後は復元された設定を表示、破棄でキーが変わり旧結果が無効化 | `TravelPointTests`（`TravelPickedCandidate`／`TravelEndpoint.shown`） |
+| 単体（候補の対応付け） | 自分の query 保存のローカル反映では候補を維持、query 変更・place 変更・解除・unreadable 受信で破棄、place 保存の反映後は保存済み行、この検索だけの候補は選択時の設定にだけ追従、保存拒否後は復元された設定を表示、破棄でキーが変わり旧結果が無効化。時系列: 「nil→query 反映→外部 nil」「A→B 反映→外部 A」で反映後の戻りを破棄、他項目だけの変更は反映前後とも維持 | `TravelPointTests`（`TravelPickedCandidate.reconciled`／`TravelEndpoint.shown`） |
 | 単体（解決順） | 明示指定 > 建築 Place ID > 未確定、建築変更後も明示指定維持、`unreadable` で建築既定へ戻らない、解除ボタン文言の切替（建築既定あり／なし）、同一設定で無操作、設定変更で `TravelRequestKey` 不一致 | `TravelSearchTests` 追加 |
 | Rules 統合（gated） | `place`/`query` の受理、両キー・未知キー・空・上限超過・`kind` 不正・map でない値の拒否、従来形 Event の受理、`createdAt` 不変、2 項目だけの `updateData` が通る、解除の `delete` が通る | 新規 `FirebaseTravelPointIntegrationTests` |
 | 競合（gated） | 先に不正（129 文字 ID をテストから直接送る）→ 後に正常、両方 ACK 後にサーバー・ローカルとも後者。編集画面の全項目更新の前後で `travelPoint` が保持。オフラインで「編集→地点設定」「地点設定→編集」を積んで再接続後に両方残る。削除済み文書への設定が not-found で可視に失敗 | 同上 |
