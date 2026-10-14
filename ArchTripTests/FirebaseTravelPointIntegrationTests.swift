@@ -170,21 +170,22 @@ struct FirebaseTravelPointIntegrationTests {
         }
     }
 
+    /// The published rules decide this before the server reports the document missing:
+    /// `allow update` compares `request.resource.data.createdAt` with `resource.data.createdAt`,
+    /// and a deleted document has no `resource`, so the write is denied (permission denied,
+    /// code 7), not "not found". Observed on the published rules; the app shows the failure
+    /// either way, and `updateData` never recreates the document.
     @Test func settingThePointOfAMissingEventFailsVisibly() async throws {
         try await TravelPointLive.withTestTrip(store: store) { uid, trip in
             let event = TravelPointLive.makeEvent(tripID: trip.id)
             try await TravelPointLive.acknowledged { try store.createEvent(event, uid: uid, serverAcknowledged: $0) }
             try await TravelPointLive.acknowledged { store.deleteEvent(event, uid: uid, serverAcknowledged: $0) }
-            do {
+            await TravelPointLive.expectPermissionDenied("setting the point of a deleted Event") {
                 try await TravelPointLive.acknowledged { try store.setTravelPoint(.place(id: TravelPointLive.identifier), event: event, uid: uid, serverAcknowledged: $0) }
-                Issue.record("setting the point of a deleted Event must fail")
-            } catch {
-                let error = error as NSError
-                #expect(error.domain == FirestoreErrorDomain && error.code == FirestoreErrorCode.notFound.rawValue, "\(error)")
             }
             let snapshot = try await db.document(TripPath.event(uid: uid, tripID: trip.id, eventID: event.id)).getDocument(source: .server)
             #expect(!snapshot.exists, "nothing is recreated")
-            print("TRAVELPOINT-EVIDENCE setting the point of a deleted Event failed visibly (not found); nothing recreated")
+            print("TRAVELPOINT-EVIDENCE setting the point of a deleted Event failed visibly (permission denied by the published rules, not not-found); nothing recreated")
         }
     }
 }

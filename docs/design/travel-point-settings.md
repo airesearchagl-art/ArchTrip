@@ -8,6 +8,7 @@
 - 承認: `Event.travelPoint` の追加と専用更新経路。R1 維持＋優先表示（自動解除なし）。R2 手段・基準時刻は保存しない。R3 Rules は文書全体を検証し、上限超過・破損設定は解除案内。R4 129 文字以上の ID 候補はこの検索だけに使用可、保存しない。R5 単体＋Debug 読込みフックで確認し、不正な実文書での確認は未検証と記録。
 - 補正 1（§4）: Apple 候補由来のヒントを一部編集しただけでは全文を保存可能にしない。Q5 を出所別に分け、候補由来の場合は自動入力を消した独立の入力欄（「保存する検索語」）から利用者が入力する。候補の名称・住所のコピー保存経路は作らない。
 - 補正 2（§3.4）: ローカルリスナーへの反映を「保存済み」と表示しない。「同期中／保存完了／保存失敗」を server ACK・拒否で区別して表示する。競合時は ACK の到着順ではなくサーバーの適用結果とリスナーに従い、古い応答が新しい操作の表示を上書きしない。
+- 公開後補正（2026-10-15、§3.3／§9.2）: 削除済み予定への地点更新の拒否は not-found ではなく permission-denied（公開 Rules の `allow update` が `resource.data.createdAt` と比較するため）。文書が再作成されない確認は維持。
 
 改訂 v2（2026-10-14）: 設計レビューの Human 判断と修正依頼を反映。
 
@@ -115,11 +116,11 @@ updateData(["travelPoint": FieldValue.delete(),
 | 同じ地点を続けて選ぶ | 無操作（§3.2）。 |
 | 別の地点を続けて選ぶ（1 件目の返答前） | 2 件とも送る。画面は常にローカル表示（最新）を示す。 |
 | 遅れて届く保存成功 | ログ「Server acknowledged …」のみ。画面を閉じていても同じ。 |
-| 遅れて届く保存失敗（Rules 拒否・not-found 等） | その 1 件だけ取り消され、アラート「変更を保存できませんでした」。後から送った新しい選択は残る（取り消されるのは拒否された 1 件だけ）。画面が開いていればリスナー経由で復元後の状態を表示する。 |
+| 遅れて届く保存失敗（Rules 拒否。削除済み予定への更新も公開 Rules では permission-denied、下記） | その 1 件だけ取り消され、アラート「変更を保存できませんでした」。後から送った新しい選択は残る（取り消されるのは拒否された 1 件だけ）。画面が開いていればリスナー経由で復元後の状態を表示する。 |
 | 古い失敗による巻戻しで新しい選択が消えないこと | 上の規則と、アプリが写しを書き戻さないこと（§3.1）で保証。§9.2 の「先に不正、後に正常」テストで確認。 |
 | 画面終了（完了・スワイプ） | 送信済みの書込みは取り消さない。候補ピッカーのキャンセルは何も送らない。 |
 | 予定の削除（この端末・別端末）: 選ぶ前 | `events` に無い → 「この予定は利用できなくなりました」を表示し、選択・解除ボタンを出さない。何も送らない。 |
-| 予定の削除: 送信後 | サーバーが not-found で拒否 → アラート。文書は無いままで、復元するものはない。 |
+| 予定の削除: 送信後 | サーバーが拒否 → アラート。公開 Rules の `allow update` は `request.resource.data.createdAt` を `resource.data.createdAt` と比較するため、削除済み文書（`resource` なし）では not-found ではなく permission-denied になる（公開 Rules で確認、§9.2）。`updateData` は文書を再作成せず、無いままで復元するものはない。 |
 | 別端末が他の項目を編集 | 項目単位で統合され両方残る（旧 build の編集画面は `travelPoint` を知らず送らない、新 build の編集画面は送らない）。リスナーで `updatedAt` が変わり結果は無効化。 |
 | 別端末が同じ予定の地点を変更 | 最後に ACK された設定が残る。画面はリスナー表示に従う。 |
 | この端末で編集画面と移動画面を続けて使う | 互いに素な項目（`updatedAt` だけ両方が書く。後勝ちで無害）。両方残る。 |
@@ -133,7 +134,7 @@ updateData(["travelPoint": FieldValue.delete(),
 - ローカルキャッシュへの反映（リスナーが `hasPendingWrites` 付きで届ける）を「保存済み」とは表示しない。保存状態は書込みごとの server 応答で決める。
   - 同期中: 送信済みで応答待ち。
   - 保存完了: server ACK。
-  - 保存失敗: server 拒否（Rules・not-found 等）。既存アラートも出る。
+  - 保存失敗: server 拒否（Rules 拒否。削除済み予定への更新も Rules が permission-denied で拒否する、§3.3）。既存アラートも出る。
 - 実装: `AppSession` が予定 ID ごとに最新の書込みトークン（再利用しない連番）と状態を持つ（`TravelPointWriteTracker`）。応答はトークンが最新のときだけ状態を変える。古い応答（先に送った書込みの遅い ACK／拒否）は、後の操作の表示を上書きしない。
 - 競合: 表示する設定はサーバーの適用結果（リスナー）に従う。ACK の到着順は使わない。拒否で SDK がその 1 件を取り消せばリスナーが復元後の値を届け、画面はそれに従う。
 - 画面内候補の対応付け（PR #17 レビュー反映）: 候補は `TravelPickedCandidate` として「予定 ID・選択時点の保存設定（settingAtPick）・選択が要求した設定（requestedSetting: savePlace→place、saveQuery→query、この検索だけ→settingAtPick）・反映済みフラグ（isReflected）」を持つ。リスナーの Event を受けるたびに `reconciled(with:)` で更新する: Event が requestedSetting を持てば反映済みとして維持、反映前に settingAtPick を持てば維持（自分の書込みの反映待ち）、それ以外は破棄。反映後は requestedSetting 以外（settingAtPick へ戻った場合を含む）で破棄するため、「nil→query 反映→外部で解除」「A→B 反映→外部で A」のどちらも候補を消し受信値を表示する。他項目だけの変更（updatedAt・title 等）は travelPoint を見ないため維持。保存拒否は反映前にリスナーが settingAtPick を復元するため対応付けだけでは区別できず、書込みの「保存失敗」状態でも候補を破棄する（反映後の復元は対応付けだけで破棄される）。候補の破棄は endpoint の変化として `TravelRequestKey` を変え、旧結果を無効化する。
@@ -257,10 +258,10 @@ updateData(["travelPoint": FieldValue.delete(),
 | 旧 build（`ab93b8e`〜`886fcd7`）× 新 Rules | 旧 build は `travelPoint` を書かない。更新は `updateData` で既知項目だけを送り、`optionalFields` に無いので削除も送らない → 保持される（§7.2 で実検証）。 |
 | 旧 build が `travelPoint` 付き Event を読む | `Firestore.Decoder` は未知キーを無視するため読込・編集・保存できる（§7.2 で実検証）。旧 build の移動画面は設定を知らず、建築既定／未確定として扱う（制限）。 |
 | 旧 build × 上限超過／不正な `travelPoint` | 旧 build の編集保存は Rules 拒否（§5.3）。旧 build では修復不可。クライアントからは Rules を通らず作れないため、§7.2 の対象外（未検証として記録）。 |
-| 新 build × 旧 Rules（未公開） | `travelPoint` を含む更新は `hasOnly` で拒否され「変更を保存できませんでした」。その 1 件だけ取り消される。地点を保存しない操作は従来どおり動く。 |
+| 新 build × 旧 Rules（§6 公開前の状態） | `travelPoint` を含む更新は `hasOnly` で拒否され「変更を保存できませんでした」。その 1 件だけ取り消される。地点を保存しない操作は従来どおり動く。 |
 | RF-03（PR #15） | Event ごと削除されるため追加対応なし。 |
 
-順序: Rules 公開 → 公開後検証（gated suite）→ 旧 build 実検証（§7.2）→ merge → 導入。
+順序: Rules 公開（済、2026-10-15）→ 公開後検証（gated suite、済: 新規 5 件＋既存 11 件 PASS）→ 旧 build 実検証（§7.2、未）→ merge → 導入。
 
 ### 7.2 旧 build 互換性の実検証計画
 
@@ -339,7 +340,7 @@ updateData(["travelPoint": FieldValue.delete(),
 | 単体（候補の対応付け） | 自分の query 保存のローカル反映では候補を維持、query 変更・place 変更・解除・unreadable 受信で破棄、place 保存の反映後は保存済み行、この検索だけの候補は選択時の設定にだけ追従、保存拒否後は復元された設定を表示、破棄でキーが変わり旧結果が無効化。時系列: 「nil→query 反映→外部 nil」「A→B 反映→外部 A」で反映後の戻りを破棄、他項目だけの変更は反映前後とも維持 | `TravelPointTests`（`TravelPickedCandidate.reconciled`／`TravelEndpoint.shown`） |
 | 単体（解決順） | 明示指定 > 建築 Place ID > 未確定、建築変更後も明示指定維持、`unreadable` で建築既定へ戻らない、解除ボタン文言の切替（建築既定あり／なし）、同一設定で無操作、設定変更で `TravelRequestKey` 不一致 | `TravelSearchTests` 追加 |
 | Rules 統合（gated） | `place`/`query` の受理、両キー・未知キー・空・上限超過・`kind` 不正・map でない値の拒否、従来形 Event の受理、`createdAt` 不変、2 項目だけの `updateData` が通る、解除の `delete` が通る | 新規 `FirebaseTravelPointIntegrationTests` |
-| 競合（gated） | 先に不正（129 文字 ID をテストから直接送る）→ 後に正常、両方 ACK 後にサーバー・ローカルとも後者。編集画面の全項目更新の前後で `travelPoint` が保持。オフラインで「編集→地点設定」「地点設定→編集」を積んで再接続後に両方残る。削除済み文書への設定が not-found で可視に失敗 | 同上 |
+| 競合（gated） | 先に不正（129 文字 ID をテストから直接送る）→ 後に正常、両方 ACK 後にサーバー・ローカルとも後者。編集画面の全項目更新の前後で `travelPoint` が保持。オフラインで「編集→地点設定」「地点設定→編集」を積んで再接続後に両方残る。削除済み文書への設定が permission-denied で可視に失敗し（公開 Rules では `resource` が無く update 条件が成立しないため、not-found ではない）、文書が再作成されない | 同上 |
 | シミュレータ受入（専用機・使い捨てユーザー・Fixture） | ①ID あり候補→閉じて再表示→同じ地点が再取得 ②アプリ再起動後も同じ ③ID なし＋手入力→検索語だけ復元、再選択を求める ④ID なし＋自動ヒント未変更→保存されず説明 ⑤ピッカーのキャンセルで変化なし ⑥解除で建築の場所／未確定へ（文言の切替） ⑦建築の関連付けを変更→建築既定が追従し明示指定は維持＋優先表示 ⑧地点変更後に旧結果が「条件が変わりました」 ⑨地点設定後に編集画面で title／note を変更・保存→両方残る（生文書でも確認） ⑩129 文字 ID 候補の拒否（Debug 用検索フック）⑪長い保存済み ID／不正 map の表示・解除・編集画面の阻止（Debug 用読込みフックで表示経路。実文書での確認は R5） | XCUITest プローブ（既存方式） |
 | 旧 build 実検証 | §7.2 | 旧 build 専用シミュレータ |
 | 実機受入条件（Human） | ①②③⑥⑧⑨ を試用用の予定で確認。所要時間・経路が予定に保存されないことを編集画面で確認。設定が優先表示と解除文言どおりに出ること | 実機 |
@@ -363,6 +364,6 @@ updateData(["travelPoint": FieldValue.delete(),
 ## 10. Human Gate と未決事項・見積
 
 - Data Model Gate: 通過（2026-10-14）。`Event.travelPoint` の追加と専用更新経路を承認。`06_Data_Model` の更新は Vault 側（Documentation Sync Trigger: yes）。
-- Rules Gate（未）: §6 の差分の公開と公開後検証（既存 gated suite ＋ 新規 suite）、続けて §7.2 の旧 build 実検証。公開前は公開後テストを未実施と明記する。
+- Rules Gate: 通過（2026-10-15、Human が Console で公開。`firebase/firestore.rules` の SHA256 `ed530a5fdc810674a60512022c7adfdecdd06a601e46e01d8188252d11acad19` が公開内容と一致、再公開不要）。公開後検証は新規 suite 5 件＋既存 gated suite 11 件 PASS（削除済み予定への更新は permission-denied、上記補正）。§7.2 の旧 build 実検証は未実施。
 - 確定: R1 維持＋優先表示（自動解除なし）。R2 手段・時刻は保存しない。R3 Rules は文書全体を検証、上限超過・破損設定は解除案内。R4 129 文字以上の ID 候補はこの検索だけに使用可、保存しない。R5 単体＋Debug 読込みフックで確認し、不正な実文書での確認は未検証と記録。
 - 実装見積: 2.0〜2.5 人日（モデルと許容デコード、専用更新経路と保存状態、出所分離付きピッカー、画面と文言、編集画面の阻止、単体・構造・gated テスト、Debug 用フック、シミュレータ確認）＋ Rules 公開/検証（Human）＋ 旧 build 実検証 0.5 人日 ＋ 実機受入（Human）。
