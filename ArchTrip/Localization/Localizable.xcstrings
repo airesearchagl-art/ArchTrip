@@ -511,6 +511,16 @@
         }
       }
     },
+    "Can't save the deletion record on this device, so the deletion won't start." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除の記録をこの端末に保存できないため、削除を開始しません。"
+          }
+        }
+      }
+    },
     "Cancel" : {
       "localizations" : {
         "ja" : {
