@@ -39,38 +39,155 @@ nonisolated struct TravelPoint: Hashable, Sendable {
 }
 
 /// Where one side of the search is. Decided by what the Event and its Building hold,
-/// never by guessing: a Building without a Place ID gives no point, and the user picks a
-/// candidate on the spot. Stored coordinates of unknown provenance are not used (D-022).
+/// never by guessing: the Event's own travel point first (the user's explicit choice,
+/// kept until they clear it), then the Building's Place ID, else nothing, and the user
+/// picks a result on the spot. Stored coordinates of unknown provenance are not used
+/// (D-022), and an unreadable travel point never falls back to the Building's place.
 nonisolated enum TravelEndpoint: Hashable, Sendable {
     /// The Event's Building is linked to an Apple Maps place by ID; the place is fetched
-    /// while shown (`PlaceDirectory`).
+    /// while shown (`PlaceDirectory`). Nothing is stored on the Event for it.
     case linkedPlace(placeID: String, buildingID: String, buildingUpdatedAt: Date)
-    /// A search result the user picked for this search only. Never saved anywhere.
+    /// The Event's stored travel point is a Place ID the user picked. Fetched while shown,
+    /// like a linked place; takes precedence over the Building's place.
+    case savedPlace(placeID: String)
+    /// The Event's stored travel point is the search text the user typed: restored into
+    /// the picker, and nothing is chosen until the user picks a result again.
+    case savedQuery(String)
+    /// The Event's stored travel point cannot be read. No point, and no fallback to the
+    /// Building's place; the user clears or replaces it.
+    case unreadableSetting(reason: String)
+    /// A search result picked on this screen. Shown until the listener delivers it as the
+    /// Event's saved point, or for this search only when nothing was saved.
     case candidate(PlaceResult)
     /// Nothing usable yet. `hint` is only a suggested query (the Event's location text or
     /// its Building's name); no result is chosen automatically.
     case unresolved(hint: String)
 
     static func resolve(event: Event, buildings: [Building]) -> TravelEndpoint {
-        let building = event.buildingId.flatMap { id in buildings.first { $0.id == id } }
-        if let building, let placeID = building.applePlaceId {
-            return .linkedPlace(placeID: placeID, buildingID: building.id, buildingUpdatedAt: building.updatedAt)
+        switch event.travelPoint {
+        case .place(let id):
+            return .savedPlace(placeID: id)
+        case .query(let text):
+            return .savedQuery(text)
+        case .unreadable(let reason):
+            return .unreadableSetting(reason: reason)
+        case nil:
+            break
         }
+        if let linked = buildingDefault(event: event, buildings: buildings) {
+            return linked
+        }
+        let building = event.buildingId.flatMap { id in buildings.first { $0.id == id } }
         let hint = event.locationName.isEmpty ? (building?.name ?? "") : event.locationName
         return .unresolved(hint: hint)
     }
 
+    /// The Building's place, whatever the Event's own travel point: what "Back to the
+    /// building's place" returns to, and nil when the Building has no Place ID.
+    static func buildingDefault(event: Event, buildings: [Building]) -> TravelEndpoint? {
+        guard let building = event.buildingId.flatMap({ id in buildings.first { $0.id == id } }), let placeID = building.applePlaceId else {
+            return nil
+        }
+        return .linkedPlace(placeID: placeID, buildingID: building.id, buildingUpdatedAt: building.updatedAt)
+    }
+
     var isUsable: Bool {
-        if case .unresolved = self { return false }
-        return true
+        switch self {
+        case .linkedPlace, .savedPlace, .candidate: true
+        case .savedQuery, .unreadableSetting, .unresolved: false
+        }
     }
 
     var hint: String {
         switch self {
         case .unresolved(let hint): hint
+        case .savedQuery(let text): text
         case .candidate(let result): result.name.isEmpty ? result.address : result.name
-        case .linkedPlace: ""
+        case .linkedPlace, .savedPlace, .unreadableSetting: ""
         }
+    }
+
+    /// Where the picker's search field starts from, with its provenance: the Event's own
+    /// text, Apple's text of a picked result, or the saved search text.
+    var querySource: TravelQuerySource {
+        switch self {
+        case .unresolved(let hint): hint.isEmpty ? .empty : .appText(hint)
+        case .savedQuery(let text): .saved(text)
+        case .candidate(let result): .candidate(result.name.isEmpty ? result.address : result.name)
+        case .linkedPlace, .savedPlace, .unreadableSetting: .empty
+        }
+    }
+}
+
+/// A result picked on the travel screen, bound to the Event and to the setting the Event
+/// held when it was picked, so that a change arriving from elsewhere (another screen or
+/// device changing, clearing or breaking the setting) is never hidden behind it.
+///
+/// The candidate follows the listener in two phases. Until the setting its pick
+/// requested has been delivered, the Event may still hold the setting it was picked
+/// against (the user's own write not reflected locally yet). Once the requested setting
+/// has been delivered (`isReflected`), only that setting keeps the candidate: anything
+/// else, including a return to the setting it was picked against, drops it. A rejected
+/// save before any reflection restores the setting it was picked against, which this
+/// alone cannot tell from an unreflected write; the screen also drops the candidate on
+/// the write's failed state.
+nonisolated struct TravelPickedCandidate: Hashable, Sendable {
+    let result: PlaceResult
+    let outcome: TravelPickOutcome
+    let eventID: String
+    /// The Event's setting at the moment of the pick.
+    let settingAtPick: TravelPointSetting?
+    /// Set once the listener has delivered the Event holding the requested setting.
+    private(set) var isReflected = false
+
+    init(result: PlaceResult, outcome: TravelPickOutcome, eventID: String, settingAtPick: TravelPointSetting?) {
+        self.result = result
+        self.outcome = outcome
+        self.eventID = eventID
+        self.settingAtPick = settingAtPick
+    }
+
+    /// The setting the pick asked the Event to hold; for a pick that saves nothing, the
+    /// one the Event had.
+    var requestedSetting: TravelPointSetting? {
+        switch outcome {
+        case .savePlace(let id): .place(id: id)
+        case .saveQuery(let text): .query(text)
+        case .thisSearchOnly: settingAtPick
+        }
+    }
+
+    /// The candidate as it stands after the listener delivered `event`, or nil when it
+    /// no longer belongs to what the Event holds. Only the travel point is looked at: an
+    /// edit of any other field keeps the candidate.
+    func reconciled(with event: Event) -> TravelPickedCandidate? {
+        guard event.id == eventID else { return nil }
+        if event.travelPoint == requestedSetting {
+            var reflected = self
+            reflected.isReflected = true
+            return reflected
+        }
+        if !isReflected, event.travelPoint == settingAtPick { return self }
+        return nil
+    }
+
+    /// Whether the candidate still belongs to what the listener delivers for the Event.
+    func applies(to event: Event) -> Bool {
+        reconciled(with: event) != nil
+    }
+}
+
+extension TravelEndpoint {
+    /// What one side shows: the stored endpoint, unless a candidate still applies to the
+    /// Event. A saved place the listener already reflects is shown from the Event
+    /// (fetched by its ID) rather than as the picked result; a saved query and a pick
+    /// used for this search only keep the picked result on screen.
+    static func shown(stored: TravelEndpoint, candidate: TravelPickedCandidate?, event: Event) -> TravelEndpoint {
+        guard let candidate, candidate.applies(to: event) else { return stored }
+        if case .savePlace(let id) = candidate.outcome, case .savedPlace(let placeID) = stored, placeID == id {
+            return stored
+        }
+        return .candidate(candidate.result)
     }
 }
 

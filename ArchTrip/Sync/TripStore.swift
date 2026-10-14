@@ -67,6 +67,15 @@ final class TripStore: TripDeleting {
         events(uid: uid, tripID: event.tripId).document(event.id).updateData(fields, completion: serverAcknowledged)
     }
 
+    /// Travel MVP: sets (`setting`) or clears (nil) the Event's travel point with a
+    /// two-field update, `travelPoint` and `updatedAt` only (see `TravelPointUpdate`).
+    /// Nothing else of the Event is sent, so what another screen or device wrote to it
+    /// is left alone. Fails visibly when the document no longer exists.
+    func setTravelPoint(_ setting: TravelPointSetting?, event: Event, uid: String, now: Date = Date(), serverAcknowledged: @escaping (Error?) -> Void) throws {
+        let fields = try TravelPointUpdate.fields(setting: setting, createdAt: event.createdAt, now: now)
+        events(uid: uid, tripID: event.tripId).document(event.id).updateData(fields, completion: serverAcknowledged)
+    }
+
     func deleteEvent(_ event: Event, uid: String, serverAcknowledged: @escaping (Error?) -> Void) {
         events(uid: uid, tripID: event.tripId).document(event.id).delete(completion: serverAcknowledged)
     }
