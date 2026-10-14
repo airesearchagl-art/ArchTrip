@@ -51,6 +51,36 @@ struct TimelineTests {
         }
     }
 
+    /// Travel MVP: a gap row knows the Events on either side of it, across a current-time
+    /// split and hotel markers, and picks the Event the gap actually starts from when
+    /// Events overlap. Gaps touching nothing on one side give nothing.
+    @Test func gapEndpointsAroundAGap() {
+        let a = event("a", at(16, 9), at(16, 12))
+        let b = event("b", at(16, 10), at(16, 11))
+        let c = event("c", at(16, 13), at(16, 14))
+        let plain = TimelineBuilder.items(for: at(16, 0), events: [a, b, c], calendar: calendar)
+        #expect(ids(plain) == ["a", "b", "free(12:0-13:0)", "c"])
+        let pair = TimelineBuilder.gapEndpoints(at: 2, in: plain)
+        #expect(pair?.before.id == "a" && pair?.after.id == "c", "the gap starts at a's end, not b's")
+        #expect(TimelineBuilder.gapEndpoints(at: 0, in: plain) == nil)
+        #expect(TimelineBuilder.gapEndpoints(at: 9, in: plain) == nil)
+
+        let split = TimelineBuilder.items(for: at(16, 0), events: [a, c], calendar: calendar, now: at(16, 12, 30))
+        #expect(ids(split) == ["a", "free(12:0-12:30)", "now(12:30)", "free(12:30-13:0)", "c"])
+        for index in [1, 3] {
+            let pair = TimelineBuilder.gapEndpoints(at: index, in: split)
+            #expect(pair?.before.id == "a" && pair?.after.id == "c", "gap part \(index)")
+        }
+
+        let hotel = allDay("h", .hotel, at(16, 0), at(17, 0))
+        var withMarker = hotel
+        withMarker.checkInMinutes = 12 * 60 + 15
+        let marked = TimelineBuilder.items(for: at(16, 0), events: [a, c, withMarker], calendar: calendar)
+        let gapIndex = marked.firstIndex { if case .freeTime = $0 { return true } else { return false } }
+        let around = gapIndex.flatMap { TimelineBuilder.gapEndpoints(at: $0, in: marked) }
+        #expect(around?.before.id == "a" && around?.after.id == "c", "markers are skipped")
+    }
+
     @Test func chronologicalOrder() {
         let events = [
             event("c", at(16, 15), at(16, 16)),

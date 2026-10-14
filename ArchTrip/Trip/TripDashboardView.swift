@@ -11,6 +11,8 @@ struct TripDashboardView: View {
     @State private var hasLoadedEvents = false
     @State private var eventsLoadFailed = false
     @State private var selectedDay: Date?
+    /// The gap whose travel options are open (MVP): the Events on either side of it.
+    @State private var travelTarget: TravelTarget?
     @State private var editorTarget: EventEditorTarget?
     @State private var editingTrip = false
     /// RF-03: the Trip being deleted. Attached outside `dashboard(_:)` so the sheet
@@ -100,6 +102,9 @@ struct TripDashboardView: View {
         .sheet(isPresented: $editingTrip) {
             TripEditorView(trip: trip, events: eventLoadState)
         }
+        .sheet(item: $travelTarget) { target in
+            TravelView(trip: trip, events: events, target: target)
+        }
     }
 
     private func timeline(
@@ -145,7 +150,7 @@ struct TripDashboardView: View {
                     Text(emptyText)
                         .foregroundStyle(.secondary)
                 }
-                ForEach(items) { item in
+                ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
                     switch item {
                     case .event(let event):
                         Button {
@@ -160,7 +165,19 @@ struct TripDashboardView: View {
                             }
                         }
                     case .freeTime(let start, let end):
-                        FreeTimeRow(start: start, end: end)
+                        // A gap between two Events opens the travel search for them (MVP).
+                        // The gap itself stays what it is: time available, not a travel time.
+                        if let pair = TimelineBuilder.gapEndpoints(at: index, in: items) {
+                            Button {
+                                travelTarget = TravelTarget(from: pair.before, to: pair.after)
+                            } label: {
+                                FreeTimeRow(start: start, end: end, offersTravel: true)
+                            }
+                            .tint(.primary)
+                            .accessibilityHint(Text("Shows travel options between the events"))
+                        } else {
+                            FreeTimeRow(start: start, end: end)
+                        }
                     case .now(let date):
                         NowRow(date: date)
                     case .marker(let marker):
@@ -486,6 +503,8 @@ struct AllDayEventRow: View {
 struct FreeTimeRow: View {
     let start: Date
     let end: Date
+    /// Tapping the row opens the travel search between the neighbouring Events.
+    var offersTravel = false
 
     var body: some View {
         let duration = TimelineBuilder.hoursAndMinutes(from: start, to: end)
@@ -495,6 +514,10 @@ struct FreeTimeRow: View {
                 Image(systemName: "cup.and.saucer.fill")
                 Text("Travel / Free Time")
                 durationText(duration)
+                if offersTravel {
+                    Image(systemName: "arrow.triangle.turn.up.right.diamond")
+                        .accessibilityHidden(true)
+                }
             }
             .lineLimit(1)
             .layoutPriority(1)

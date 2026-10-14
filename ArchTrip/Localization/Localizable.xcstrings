@@ -421,6 +421,26 @@
         }
       }
     },
+    "Arrival" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到着"
+          }
+        }
+      }
+    },
+    "Arrive by" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到着時刻"
+          }
+        }
+      }
+    },
     "Back" : {
       "localizations" : {
         "ja" : {
@@ -537,6 +557,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "車"
+          }
+        }
+      }
+    },
+    "Change" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "変更"
           }
         }
       }
@@ -811,6 +841,16 @@
         }
       }
     },
+    "Couldn't search the route." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路を検索できませんでした。"
+          }
+        }
+      }
+    },
     "Couldn't set up the account. Try again later." : {
       "localizations" : {
         "ja" : {
@@ -1009,6 +1049,26 @@
         }
       }
     },
+    "Depart at" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出発時刻"
+          }
+        }
+      }
+    },
+    "Departure" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出発"
+          }
+        }
+      }
+    },
     "Destination" : {
       "localizations" : {
         "ja" : {
@@ -1045,6 +1105,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "端末間同期を設定済み"
+          }
+        }
+      }
+    },
+    "Directions" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路案内"
+          }
+        }
+      }
+    },
+    "Distance" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "距離"
           }
         }
       }
@@ -1249,6 +1329,16 @@
         }
       }
     },
+    "Estimated travel time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "所要時間（見込み）"
+          }
+        }
+      }
+    },
     "Event dates aren't changed automatically. Edit them individually if needed." : {
       "localizations" : {
         "ja" : {
@@ -1355,6 +1445,36 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "食事"
+          }
+        }
+      }
+    },
+    "From" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出発地"
+          }
+        }
+      }
+    },
+    "From Apple Maps, for the time chosen above. Not saved." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "上で選んだ時刻に対する Apple Maps の結果です。保存されません。"
+          }
+        }
+      }
+    },
+    "From event" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "出発側の予定"
           }
         }
       }
@@ -1519,6 +1639,26 @@
         }
       }
     },
+    "Mode" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手段"
+          }
+        }
+      }
+    },
+    "Mode and time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "手段と時刻"
+          }
+        }
+      }
+    },
     "Name" : {
       "localizations" : {
         "ja" : {
@@ -1679,6 +1819,16 @@
         }
       }
     },
+    "No route found." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路が見つかりません。"
+          }
+        }
+      }
+    },
     "No timed events on this day" : {
       "localizations" : {
         "ja" : {
@@ -1695,6 +1845,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "出張はまだありません"
+          }
+        }
+      }
+    },
+    "No usable point yet. Pick a candidate for this search." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地点が未確定です。この検索で使う候補を選んでください。"
           }
         }
       }
@@ -1789,6 +1949,16 @@
         }
       }
     },
+    "Only for this search. Not saved." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索にだけ使われます。保存されません。"
+          }
+        }
+      }
+    },
     "Only the place's ID is saved. Its name, address and map are fetched from Apple Maps when shown." : {
       "localizations" : {
         "ja" : {
@@ -1849,6 +2019,36 @@
         }
       }
     },
+    "Pick a candidate" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "候補を選ぶ"
+          }
+        }
+      }
+    },
+    "Pick another point for this search" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索では別の地点を使う"
+          }
+        }
+      }
+    },
+    "Pick the place for this search" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索で使う地点"
+          }
+        }
+      }
+    },
     "Pickup day" : {
       "localizations" : {
         "ja" : {
@@ -1905,6 +2105,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "施設候補"
+          }
+        }
+      }
+    },
+    "Points" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地点"
           }
         }
       }
@@ -1999,6 +2209,16 @@
         }
       }
     },
+    "Result" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "結果"
+          }
+        }
+      }
+    },
     "Resume" : {
       "localizations" : {
         "ja" : {
@@ -2039,6 +2259,16 @@
         }
       }
     },
+    "Route search needs a network connection." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路検索にはネットワーク接続が必要です。"
+          }
+        }
+      }
+    },
     "Save" : {
       "localizations" : {
         "ja" : {
@@ -2075,6 +2305,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "場所名や住所で検索"
+          }
+        }
+      }
+    },
+    "Search route" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路を検索"
+          }
+        }
+      }
+    },
+    "Searching route…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路を検索中…"
           }
         }
       }
@@ -2179,6 +2429,16 @@
         }
       }
     },
+    "Shown here only. Nothing from this result is saved to the event or the server." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この画面の表示のみです。結果は予定にもサーバーにも保存されません。"
+          }
+        }
+      }
+    },
     "Shown on each day from pickup through return." : {
       "localizations" : {
         "ja" : {
@@ -2225,6 +2485,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "時刻付きの予定一覧に、それぞれの日の貸出・返却の目印として表示します。レンタカー自体は「終日・滞在情報」に残ります。"
+          }
+        }
+      }
+    },
+    "Shows travel options between the events" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定間の移動時間と経路を調べます"
           }
         }
       }
@@ -2369,6 +2639,16 @@
         }
       }
     },
+    "The inputs changed. Search again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "条件が変わりました。再検索してください。"
+          }
+        }
+      }
+    },
     "The password is too weak. Use a longer, more complex password." : {
       "localizations" : {
         "ja" : {
@@ -2405,6 +2685,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "削除結果をサーバーで確認できませんでした。再確認するまで削除済みとみなさないでください。"
+          }
+        }
+      }
+    },
+    "The route search timed out." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "経路検索がタイムアウトしました。"
           }
         }
       }
@@ -2569,6 +2859,16 @@
         }
       }
     },
+    "This event is no longer available" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この予定は削除されています"
+          }
+        }
+      }
+    },
     "This iPhone only" : {
       "localizations" : {
         "ja" : {
@@ -2619,12 +2919,42 @@
         }
       }
     },
+    "Time" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "時刻"
+          }
+        }
+      }
+    },
     "Title" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "タイトル"
+          }
+        }
+      }
+    },
+    "To" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到着地"
+          }
+        }
+      }
+    },
+    "To event" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "到着側の予定"
           }
         }
       }
@@ -2639,6 +2969,16 @@
         }
       }
     },
+    "Too many requests. Try again later." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "リクエストが多すぎます。しばらくしてからお試しください。"
+          }
+        }
+      }
+    },
     "Train" : {
       "localizations" : {
         "ja" : {
@@ -2649,12 +2989,42 @@
         }
       }
     },
+    "Transit" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公共交通"
+          }
+        }
+      }
+    },
+    "Transit: Apple Maps gives an estimated time only. Open Apple Maps for lines and times." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "公共交通は所要時間の見込みのみです。路線や時刻は Apple Maps で確認してください。"
+          }
+        }
+      }
+    },
     "Travel / Free Time" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "移動時間・空き時間"
+          }
+        }
+      }
+    },
+    "Travel between events" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "予定間の移動"
           }
         }
       }

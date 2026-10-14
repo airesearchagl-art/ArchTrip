@@ -52,7 +52,7 @@ struct PlaceFetchClassificationTests {
         #expect(MapKitPlaceFetcher.classify(mapKit(.serverFailure)) == .server)
         #expect(MapKitPlaceFetcher.classify(mapKit(.decodingFailed)) == .server)
         #expect(MapKitPlaceFetcher.classify(mapKit(.unknown)) == .server)
-        #expect(MapKitPlaceFetcher.classify(mapKit(.directionsNotFound)) == .server)
+        #expect(MapKitPlaceFetcher.classify(mapKit(.directionsNotFound)) == .notFound, "travel search: no route is not a server failure")
     }
 
     /// MapKit often wraps the real cause: a generic MapKit error with a URL or POSIX error
