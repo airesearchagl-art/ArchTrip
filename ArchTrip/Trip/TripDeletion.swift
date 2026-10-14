@@ -65,6 +65,9 @@ nonisolated enum TripDeletion {
         /// A request was sent but no acknowledgement arrived in time.
         case noReply
         case tooManyEvents(Int)
+        /// The on-device record of the deletion could not be saved, so it does not start:
+        /// without the record, a stop could not be resumed after a restart.
+        case ledgerUnavailable
         case other(domain: String, code: Int)
     }
 
@@ -254,13 +257,24 @@ final class TripDeletionRun {
     }
 
     /// Runs the batches for the checked listing, then verifies on the server. Only from `.ready`.
+    /// The ledger record is written, synchronously, before the first batch is sent; if it
+    /// cannot be, nothing is sent.
     func delete() {
         guard case .ready = state, let inventory = pendingInventory else { return }
         let current = begin()
         let total = inventory.eventIDs.count
         acknowledgedEvents = 0
         tripStatus = inventory.tripExists ? .present : .verifiedGone
-        startedAt = Date()
+        let existing = ledger?.records(for: uid).first { $0.tripID == tripID }
+        startedAt = existing?.startedAt ?? Date()
+        previouslyAcknowledged = existing?.acknowledgedEvents ?? 0
+        do {
+            try saveProgress(reason: "started")
+        } catch {
+            ledgerWarning = "save before the first batch failed: \(error)"
+            state = .blocked(.ledgerUnavailable)
+            return
+        }
         state = .deleting(acknowledged: 0, total: total)
         task = Task {
             let batches = TripDeletion.batches(
@@ -286,6 +300,7 @@ final class TripDeletionRun {
                     finish(token: current)
                     return
                 }
+                updateProgress(reason: "inProgress")
                 if sweeps == configuration.maxSweeps {
                     stop(.leftovers(events: listing.eventIDs.count, tripExists: listing.tripExists), token: current)
                     return
@@ -302,6 +317,30 @@ final class TripDeletionRun {
     /// What the server acknowledged in the current run, and what is known of the Trip.
     private var acknowledgedEvents = 0
     private var tripStatus: TripDeletion.TripStatus = .present
+    /// Acknowledged Events recorded by earlier runs of the same deletion (resume).
+    private var previouslyAcknowledged = 0
+    /// A ledger save or erase that failed after the deletion started; shown in the log.
+    private(set) var ledgerWarning: String?
+
+    /// Writes the current state of this deletion to the ledger. Throws when the storage
+    /// cannot be written; the caller decides whether that stops the run.
+    private func saveProgress(reason: String) throws {
+        guard let ledger else { return }
+        try ledger.record(PendingTripDeletion(
+            tripID: tripID, startedAt: startedAt, updatedAt: Date(),
+            acknowledgedEvents: previouslyAcknowledged + acknowledgedEvents,
+            tripStatus: tripStatus, reason: reason
+        ), uid: uid)
+    }
+
+    /// After the first batch the record exists; a later save failing is logged, not fatal.
+    private func updateProgress(reason: String) {
+        do {
+            try saveProgress(reason: reason)
+        } catch {
+            ledgerWarning = "save (\(reason)) failed: \(error)"
+        }
+    }
 
     /// Sends the batches in order, counting only acknowledged ones. False when one failed
     /// or the run was superseded; the stop, if any, is already applied.
@@ -326,6 +365,7 @@ final class TripDeletionRun {
             guard current == token else { return false }
             acknowledgedEvents += batch.eventIDs.count
             if batch.andTrip { tripStatus = .deletionAcknowledged }
+            updateProgress(reason: "inProgress")
             state = .deleting(acknowledged: acknowledgedEvents, total: total)
         }
         return true
@@ -334,21 +374,21 @@ final class TripDeletionRun {
     private func stop(_ reason: TripDeletion.Stop.Reason, token: Int) {
         guard token == self.token else { return }
         let stop = TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledgedEvents, tripStatus: tripStatus)
-        if stop.needsFollowUp, let ledger {
-            let existing = ledger.records(for: uid).first { $0.tripID == tripID }
-            ledger.record(PendingTripDeletion(
-                tripID: tripID, startedAt: existing?.startedAt ?? startedAt, updatedAt: Date(),
-                acknowledgedEvents: acknowledgedEvents + (existing?.acknowledgedEvents ?? 0),
-                tripStatus: tripStatus, reason: stop.reasonCode
-            ), uid: uid)
+        if stop.needsFollowUp {
+            updateProgress(reason: stop.reasonCode)
+        } else if let ledger {
+            // Nothing was sent: the record written before the first batch is withdrawn.
+            do { try ledger.remove(tripID: tripID, uid: uid) } catch { ledgerWarning = "erase after a stop that sent nothing failed: \(error)" }
         }
         state = .stopped(stop)
     }
 
-    /// The server listed nothing: the deletion is confirmed and no follow-up remains.
+    /// The server listed neither the Trip nor any Event: the only time the record is erased.
     private func finish(token: Int) {
         guard token == self.token else { return }
-        ledger?.remove(tripID: tripID, uid: uid)
+        if let ledger {
+            do { try ledger.remove(tripID: tripID, uid: uid) } catch { ledgerWarning = "erase after confirmation failed: \(error)" }
+        }
         state = .done
     }
 

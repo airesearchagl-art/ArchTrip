@@ -16,6 +16,14 @@ final class FaultInjectingTripDeleter: TripDeleting {
         case verification
         /// Every listing after the batches adds a phantom Event, until the sweep limit.
         case leftovers
+        /// The first batch never returns (nothing is sent): for a force quit right after
+        /// the ledger record was written.
+        case stallFirstBatch
+        /// The second batch never returns: for a force quit while sending.
+        case stallSecondBatch
+        /// The listing after the batches never returns: for a force quit after the Trip's
+        /// acknowledgement and before verification.
+        case stallVerification
     }
 
     static let environmentKey = "ARCHTRIP_DEBUG_DELETION_FAULT"
@@ -40,9 +48,12 @@ final class FaultInjectingTripDeleter: TripDeleting {
 
     func inventory(uid: String, tripID: String) async throws -> TripDeletionInventory {
         listings += 1
-        let real = try await base.inventory(uid: uid, tripID: tripID)
         // Listings before any batch are the checks (possibly repeated after a blocker);
         // listings after a batch are verifications.
+        if fault == .stallVerification, deletes > 0 {
+            try await Task.sleep(for: .seconds(3_600))
+        }
+        let real = try await base.inventory(uid: uid, tripID: tripID)
         switch fault {
         case .sweep where deletes == 0 && real.eventIDs.count > 1:
             return TripDeletionInventory(tripExists: real.tripExists, eventIDs: Array(real.eventIDs.dropFirst()), unreadableEventIDs: real.unreadableEventIDs)
@@ -59,6 +70,8 @@ final class FaultInjectingTripDeleter: TripDeleting {
     func delete(eventIDs: [String], andTrip: Bool, uid: String, tripID: String, timeout: Duration) async throws {
         deletes += 1
         switch fault {
+        case .stallFirstBatch where deletes == 1, .stallSecondBatch where deletes == 2:
+            try await Task.sleep(for: .seconds(3_600))
         case .sweep where !andTrip && deletes > 1 && !fired:
             fired = true
             throw unreachable

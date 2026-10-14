@@ -211,6 +211,7 @@ struct LocalizationTests {
         #expect(try japanese("Deletions to finish") == "削除が未完了の出張")
         #expect(String(format: try japanese("Deletion of trip %@… stopped before the server confirmed it."), "abcd1234") == "出張 abcd1234… の削除はサーバー確認の前に止まりました。")
         #expect(try japanese("Resume") == "再開")
+        #expect(try japanese("Can't save the deletion record on this device, so the deletion won't start.") == "削除の記録をこの端末に保存できないため、削除を開始しません。")
         #expect(try japanese("This deletion is kept in the trip list until the server confirms it, also after a restart.") == "この削除はサーバーが確認するまで出張一覧に残ります（再起動後も）。")
         #expect(try japanese("Check again waits for queued writes, then lists the server; only what is still there can be deleted.") == "再確認では未送信の書込みの完了を待ってからサーバーを再確認し、残っているものだけを削除できます。")
         let one = try bundle("en").localizedString(forKey: "Delete trip and %lld events", value: nil, table: "Localizable")

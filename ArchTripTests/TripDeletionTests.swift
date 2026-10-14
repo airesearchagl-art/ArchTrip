@@ -20,6 +20,10 @@ struct TripDeletionTests {
         var failingBatch: Int?
         var batchError: Error = NSError(domain: "FIRFirestoreErrorDomain", code: 14)
         var hangInventory = false
+        /// 1-based call index from which inventories hang (the verification listing).
+        var hangInventoryFrom: Int?
+        /// 1-based index of the `delete` call that hangs until released (a batch in flight).
+        var hangDeleteAt: Int?
         private(set) var batches: [Call] = []
         private(set) var inventoryCalls = 0
         private var hung: [CheckedContinuation<Void, Never>] = []
@@ -35,7 +39,7 @@ struct TripDeletionTests {
             let result: Result<TripDeletionInventory, Error> = inventories.isEmpty
                 ? .success(TripDeletionInventory(tripExists: true, eventIDs: []))
                 : (inventories.count > 1 ? inventories.removeFirst() : inventories[0])
-            if hangInventory {
+            if hangInventory || (hangInventoryFrom.map { inventoryCalls >= $0 } ?? false) {
                 await withCheckedContinuation { hung.append($0) }
             }
             return try result.get()
@@ -43,6 +47,9 @@ struct TripDeletionTests {
 
         func delete(eventIDs: [String], andTrip: Bool, uid: String, tripID: String, timeout: Duration) async throws {
             batches.append(Call(eventIDs: eventIDs, andTrip: andTrip))
+            if let hangDeleteAt, batches.count == hangDeleteAt {
+                await withCheckedContinuation { hung.append($0) }
+            }
             if let failingBatch, batches.count == failingBatch { throw batchError }
         }
 
@@ -60,11 +67,25 @@ struct TripDeletionTests {
         .stopped(TripDeletion.Stop(reason: reason, acknowledgedEvents: acknowledged, tripStatus: trip))
     }
 
-    private func ledger() -> TripDeletionLedger {
-        let suite = "TripDeletionTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
-        return TripDeletionLedger(defaults: defaults)
+    /// A ledger file of its own per test, in a temporary directory.
+    private func ledgerFile() -> URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("TripDeletionTests-\(UUID().uuidString)/pendingTripDeletions.json")
+    }
+
+    private func ledger(_ file: URL? = nil) -> TripDeletionLedger {
+        TripDeletionLedger(storage: FileTripDeletionLedgerStorage(url: file ?? ledgerFile()))
+    }
+
+    /// Storage whose saves fail (a full or read-only disk).
+    struct FailingStorage: TripDeletionLedgerStorage {
+        func load() throws -> Data? { nil }
+        func save(_ data: Data?) throws { throw NSError(domain: NSCocoaErrorDomain, code: NSFileWriteOutOfSpaceError) }
+    }
+
+    /// Reads the record exactly as a restarted app would: a new ledger from the same file.
+    private func reread(_ file: URL, uid: String = "fixture-uid") -> PendingTripDeletion? {
+        TripDeletionLedger(storage: FileTripDeletionLedgerStorage(url: file)).records(for: uid).first
     }
 
     private func ids(_ count: Int) -> [String] { (0..<count).map { "e\($0)" } }
@@ -457,12 +478,10 @@ struct TripDeletionTests {
     }
 
     /// Trip gone → sweep failed → the screen closes (run dropped) → the app restarts (a
-    /// new ledger reads the same defaults) → Check again from the record → the server
+    /// new ledger reads the same file) → Check again from the record → the server
     /// lists nothing → done, record erased.
     @Test func aStoppedDeletionIsResumedAfterARestartAndConfirmedEmpty() async {
-        let suite = "TripDeletionTests-restart-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: suite)!
-        defaults.removePersistentDomain(forName: suite)
+        let file = ledgerFile()
 
         let before = FakeDeleter()
         before.inventories = [
@@ -470,7 +489,7 @@ struct TripDeletionTests {
             .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
         ]
         before.failingBatch = 2
-        let firstLedger = TripDeletionLedger(defaults: defaults)
+        let firstLedger = ledger(file)
         var run: TripDeletionRun? = TripDeletionRun(deleter: before, uid: "fixture-uid", tripID: "fixture-trip", ledger: firstLedger, configuration: fast)
         run?.check()
         await settle("ready") { if case .ready = run?.state { return true } else { return false } }
@@ -479,8 +498,8 @@ struct TripDeletionTests {
         run?.cancel()
         run = nil   // the screen is gone
 
-        // Restart: a fresh ledger from the same storage still lists the deletion.
-        let afterRestart = TripDeletionLedger(defaults: defaults)
+        // Restart: a fresh ledger from the same file still lists the deletion.
+        let afterRestart = ledger(file)
         let record = afterRestart.records(for: "fixture-uid").first
         #expect(record?.tripID == "fixture-trip" && record?.tripStatus == .verifiedGone && record?.acknowledgedEvents == 2)
 
@@ -492,15 +511,14 @@ struct TripDeletionTests {
         await settle("confirmed empty") { resumed.state == .done }
         #expect(after.batches.isEmpty)
         #expect(afterRestart.records(for: "fixture-uid").isEmpty)
-        #expect(TripDeletionLedger(defaults: defaults).records(for: "fixture-uid").isEmpty, "erased in storage too")
-        defaults.removePersistentDomain(forName: suite)
+        #expect(reread(file) == nil, "erased in storage too")
     }
 
     /// The same, but the leftover is still there: the resumed run offers to delete only
     /// the remaining Events (the Trip is verified gone), then confirms.
     @Test func aStoppedDeletionResumedAfterARestartDeletesWhatRemains() async {
         let ledger = ledger()
-        ledger.record(PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 2, tripStatus: .verifiedGone, reason: "batchFailed"), uid: "fixture-uid")
+        try? ledger.record(PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 2, tripStatus: .verifiedGone, reason: "batchFailed"), uid: "fixture-uid")
         let deleter = FakeDeleter()
         deleter.inventories = [
             .success(TripDeletionInventory(tripExists: false, eventIDs: ["late"])),
@@ -513,6 +531,83 @@ struct TripDeletionTests {
         await settle("done") { resumed.state == .done }
         #expect(deleter.batches == [FakeDeleter.Call(eventIDs: ["late"], andTrip: false)])
         #expect(ledger.records(for: "fixture-uid").isEmpty)
+    }
+
+    // MARK: When the record is written (PR #15 reinforcement)
+
+    /// The record is on disk before the first batch is sent: a kill at that moment leaves
+    /// a resumable entry. It is updated after each acknowledgement, and after the Trip's
+    /// acknowledgement while the verification listing is still open.
+    @Test func theRecordIsOnDiskBeforeDuringAndAfterTheBatches() async {
+        let file = ledgerFile()
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(1_001))),
+            .success(TripDeletionInventory(tripExists: false, eventIDs: [])),
+        ]
+        deleter.hangDeleteAt = 1
+        deleter.hangInventoryFrom = 2
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger(file), configuration: fast)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        #expect(reread(file) == nil, "nothing is recorded before the user commits")
+
+        // Right after the save, with the first batch in flight (nothing acknowledged).
+        run.delete()
+        await settle("first batch in flight") { deleter.batches.count == 1 }
+        var record = reread(file)
+        #expect(record?.tripID == "fixture-trip" && record?.reason == "started" && record?.acknowledgedEvents == 0 && record?.tripStatus == .present)
+
+        // While sending: the first two batches acknowledged, the third not yet.
+        deleter.hangDeleteAt = 3
+        deleter.release()
+        await settle("third batch in flight") { deleter.batches.count == 3 }
+        record = reread(file)
+        #expect(record?.reason == "inProgress" && record?.acknowledgedEvents == 900 && record?.tripStatus == .present)
+
+        // After the Trip's acknowledgement, before the verification listing answers.
+        deleter.hangDeleteAt = nil
+        deleter.release()
+        await settle("verification in flight") { deleter.inventoryCalls == 2 }
+        record = reread(file)
+        #expect(record?.acknowledgedEvents == 1_001 && record?.tripStatus == .deletionAcknowledged)
+
+        // The listing confirms nothing is left: only now is the record erased.
+        deleter.release()
+        await settle("done") { run.state == .done }
+        #expect(reread(file) == nil)
+    }
+
+    @Test func aRecordThatCannotBeSavedStopsTheDeletionBeforeAnythingIsSent() async {
+        let deleter = FakeDeleter()
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(3)))]
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: TripDeletionLedger(storage: FailingStorage()), configuration: fast)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        #expect(run.state == .blocked(.ledgerUnavailable))
+        #expect(deleter.batches.isEmpty, "no batch is sent without its record")
+        #expect(run.ledgerWarning != nil)
+    }
+
+    /// A resumed run adds to the acknowledged count already on record.
+    @Test func aResumedRunKeepsTheEarlierAcknowledgedCount() async {
+        let file = ledgerFile()
+        let before = ledger(file)
+        try? before.record(PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(timeIntervalSince1970: 1_790_000_000), updatedAt: Date(), acknowledgedEvents: 450, tripStatus: .present, reason: "batchFailed"), uid: "fixture-uid")
+        let deleter = FakeDeleter()
+        deleter.inventories = [
+            .success(TripDeletionInventory(tripExists: true, eventIDs: ids(2))),
+            .failure(NSError(domain: "FIRFirestoreErrorDomain", code: 14)),
+        ]
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger(file), configuration: fast)
+        run.check()
+        await settle("ready") { if case .ready = run.state { return true } else { return false } }
+        run.delete()
+        await settle("verification failed") { run.state == stopped(.verificationFailed(.offline), acknowledged: 2, trip: .deletionAcknowledged) }
+        let record = reread(file)
+        #expect(record?.acknowledgedEvents == 452 && record?.reason == "verificationFailed")
+        #expect(record?.startedAt == Date(timeIntervalSince1970: 1_790_000_000), "the first attempt's start is kept")
     }
 
     // MARK: Stale replies

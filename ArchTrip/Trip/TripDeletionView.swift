@@ -101,9 +101,9 @@ struct TripDeletionView: View {
                     session.logTripDeletion("confirmed for trip \(tripID.prefix(8))")
                     onDeleted()
                 case .stopped(let stop):
-                    session.logTripDeletion("stopped for trip \(tripID.prefix(8)): \(stop.reasonCode) acknowledgedEvents=\(stop.acknowledgedEvents) trip=\(stop.tripStatus.rawValue) recorded=\(stop.needsFollowUp)")
+                    session.logTripDeletion("stopped for trip \(tripID.prefix(8)): \(stop.reasonCode) acknowledgedEvents=\(stop.acknowledgedEvents) trip=\(stop.tripStatus.rawValue) recorded=\(stop.needsFollowUp)\(run?.ledgerWarning.map { " [\($0)]" } ?? "")")
                 case .blocked(let problem):
-                    session.logTripDeletion("not started for trip \(tripID.prefix(8)): \(problem)")
+                    session.logTripDeletion("not started for trip \(tripID.prefix(8)): \(problem)\(run?.ledgerWarning.map { " [\($0)]" } ?? "")")
                 default:
                     break
                 }
@@ -228,6 +228,7 @@ struct TripDeletionView: View {
         case .denied: "The server rejected the deletion."
         case .noReply: "No reply from the server. The deletion may still complete once connected. Check again."
         case .tooManyEvents(let count): "This trip has too many events to delete here (\(count))."
+        case .ledgerUnavailable: "Can't save the deletion record on this device, so the deletion won't start."
         case .other(let domain, let code): "Couldn't delete (\(domain) \(code))."
         }
     }
