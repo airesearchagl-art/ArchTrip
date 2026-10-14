@@ -227,7 +227,7 @@ struct LocalizationTests {
         let expected = [
             "Travel between events": "予定間の移動", "From event": "出発側の予定", "To event": "到着側の予定",
             "Points": "地点", "From": "出発地", "To": "到着地", "Pick a candidate": "候補を選ぶ",
-            "Pick another point for this search": "この検索では別の地点を使う", "Change": "変更",
+            "Pick another point": "別の地点を選ぶ", "Change": "変更",
             "No usable point yet. Pick a candidate for this search.": "地点が未確定です。この検索で使う候補を選んでください。",
             "Only for this search. Not saved.": "この検索にだけ使われます。保存されません。",
             "Mode and time": "手段と時刻", "Transit": "公共交通", "Depart at": "出発時刻", "Arrive by": "到着時刻",
@@ -245,6 +245,43 @@ struct LocalizationTests {
         for (key, value) in expected {
             #expect(try japanese(key) == value, "\(key)")
         }
+    }
+
+    /// Travel point settings (design v3 §8): the saved point rows, the clear button's two
+    /// wordings, the save-state words, the separate save-text step and the limit notices.
+    @Test func japaneseTravelPointStrings() throws {
+        let expected = [
+            "Only the ID of the chosen result, or the search text you typed, is saved. Names, addresses, coordinates, routes and travel times are not.":
+                "保存されるのは選んだ候補のIDか、入力した検索語だけです。名称・住所・座標・経路・所要時間は保存しません。",
+            "Using the chosen point instead of the building's place": "建築の場所ではなく、選んだ地点を使用中",
+            "Back to the building's place": "建築の場所に戻す", "Clear the point setting": "地点設定を解除",
+            "Saved point, fetched from its ID": "保存済みの地点（IDから再取得）",
+            "Previous search text restored. Pick a candidate again (the candidate itself isn't saved).": "前回の検索語を復元しました。候補を選び直してください（候補は保存されていません）。",
+            "The saved point can't be read (invalid format). The building's place is not used automatically.": "保存済みの地点設定を読み込めません（形式が不正）。建築の場所には自動で戻しません。",
+            "The saved place ID is longer than this version's limit (128 characters). It can be shown and used for routes, but clear it before saving edits to this event.":
+                "保存済みの場所IDがこのバージョンの上限（128文字）を超えています。表示と経路検索には使えますが、この予定の編集を保存するには解除が必要です。",
+            "The saved search text is longer than this version's limit (200 characters). Clear it before saving edits to this event.":
+                "保存済みの検索語がこのバージョンの上限（200文字）を超えています。この予定の編集を保存するには解除が必要です。",
+            "This event's travel point can't be saved by this version. Clear the point setting in the travel screen or update the app.":
+                "この予定の地点設定はこのバージョンでは保存できません。移動画面で地点設定を解除するか、アプリを更新してください。",
+            "Syncing…": "同期中…", "Saved": "保存完了", "Save failed": "保存失敗",
+            "Search text to save": "保存する検索語", "Save and use": "保存して使う", "Use for this search only": "この検索だけに使う",
+            "Save the search text?": "検索語を保存しますか？", "Chosen result": "選んだ候補",
+            "This result has no ID, so only the search text you type can be saved. Next time it comes back into the search field and you pick a candidate again.":
+                "この候補にはIDがないため、保存できるのは入力した検索語だけです。次回は検索語が検索欄に戻り、候補を選び直す必要があります。",
+            "The search text is auto-filled and isn't saved. Type the search text yourself to save it.": "検索語は自動入力のため保存されません。保存するには検索語を自分で入力してください。",
+            "The search text is too long (200 characters max).": "検索語が長すぎます（200文字まで）。",
+            "This result's ID is too long to save. It's used for this search only.": "この候補のIDは長すぎて保存できません。この検索だけに使います。",
+            "Only the search text you typed is saved. You'll pick a candidate again next time.": "入力した検索語だけを保存しています。次回は候補を選び直す必要があります。",
+            "Pick another point": "別の地点を選ぶ",
+            "Used for searching only. What is saved is decided after you pick a result.": "検索にだけ使います。保存される内容は候補を選んだ後に決まります。",
+            "Only for this search. Not saved.": "この検索にだけ使われます。保存されません。",
+        ]
+        for (key, value) in expected {
+            #expect(try japanese(key) == value, "\(key)")
+        }
+        // The "for this search" wording of the linked-place button is gone: a pick is kept now.
+        #expect(try japanese("Pick another point for this search") == "<missing>")
     }
 
     @Test func japaneseFormatStringsKeepSpecifiers() throws {

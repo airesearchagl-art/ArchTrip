@@ -361,6 +361,19 @@ struct EventTests {
         }
     }
 
+    /// Travel MVP: the stored travel point never decides validity (reading and showing
+    /// are never refused); only saving checks its bound.
+    @Test func travelPointDoesNotAffectValidity() {
+        var event = makeEvent()
+        #expect(event.travelPointIsWritable)
+        event.travelPoint = .place(id: String(repeating: "L", count: TravelPointSetting.placeIdMaxLength + 1))
+        #expect(event.isValid && !event.travelPointIsWritable)
+        event.travelPoint = .unreadable(reason: "unexpected keys")
+        #expect(event.isValid && !event.travelPointIsWritable)
+        event.travelPoint = .query("Fixture")
+        #expect(event.isValid && event.travelPointIsWritable)
+    }
+
     @Test func eventPaths() {
         #expect(TripPath.events(uid: "u1", tripID: "t1") == "users/u1/trips/t1/events")
         #expect(TripPath.event(uid: "u1", tripID: "t1", eventID: "e1") == "users/u1/trips/t1/events/e1")

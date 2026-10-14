@@ -167,6 +167,32 @@ final class AppSession {
         append("Deleted event \(event.id.prefix(8)) in local cache")
     }
 
+    /// Save state of travel point writes per Event, decided by the server's replies.
+    let travelPointWrites = TravelPointWriteTracker()
+
+    /// Travel MVP: sets or clears the Event's travel point by its own two-field update
+    /// (`travelPoint` and `updatedAt`; see `TravelPointUpdate`). The write lands in the
+    /// local cache at once like every other, and its state is "syncing" until the server
+    /// answers; only the latest write of an Event can change what is shown for it, so a
+    /// late reply to an earlier write never overwrites a newer operation.
+    func setTravelPoint(_ setting: TravelPointSetting?, for event: Event) {
+        guard let uid, let store else { return }
+        let token = travelPointWrites.begin(eventID: event.id)
+        let action = "\(setting == nil ? "clear" : "set") travel point of event \(event.id.prefix(8))"
+        let sent = write(action) { done in
+            try store.setTravelPoint(setting, event: event, uid: uid) { [weak self] error in
+                self?.travelPointWrites.finish(eventID: event.id, token: token, error: error)
+                done(error)
+            }
+        }
+        if !sent {
+            travelPointWrites.finish(eventID: event.id, token: token, error: TravelPointUpdateError.notWritable)
+        }
+        #if DEBUG
+        if setting == nil { TravelPointFaults.noteCleared(event.id) }
+        #endif
+    }
+
     func createBuilding(_ building: Building) {
         guard let uid, let store else { return }
         write("create building \(building.id.prefix(8))") { try store.createBuilding(building, uid: uid, serverAcknowledged: $0) }
@@ -307,14 +333,18 @@ final class AppSession {
         }
     }
 
-    private func write(_ action: String, _ operation: (@escaping (Error?) -> Void) throws -> Void) {
+    /// Returns false when nothing was sent because the operation threw (encoding).
+    @discardableResult
+    private func write(_ action: String, _ operation: (@escaping (Error?) -> Void) throws -> Void) -> Bool {
         do {
             try operation { [weak self] error in
                 self?.handleServerResult(error, action: action)
             }
             append("Wrote \(action) to local cache")
+            return true
         } catch {
             reportSaveFailure("Encoding failed for \(action): \(error.localizedDescription)")
+            return false
         }
     }
 

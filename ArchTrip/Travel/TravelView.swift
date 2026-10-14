@@ -13,6 +13,12 @@ struct TravelTarget: Identifiable {
 /// time, then ask Apple Maps. Car and walking show a route; transit shows an estimated
 /// time and opens Apple Maps. Everything the search returns is shown here and nowhere
 /// else: no field of any Event, Building or document is written from it.
+///
+/// A point the user picks is kept on the Event as its travel point (`TravelPointSetting`):
+/// the result's Place ID, or, for a result without one, the search text the user typed.
+/// It is written by its own two-field update and shown again by every travel search the
+/// Event appears in; the setting on screen is always what the listener delivers, and its
+/// save state ("syncing", "saved", "save failed") comes from the server's reply.
 struct TravelView: View {
     let trip: Trip
     /// The Trip's Events as the dashboard sees them now; a changed or deleted Event
@@ -28,9 +34,12 @@ struct TravelView: View {
     @State private var mode: TravelMode = .car
     @State private var anchorIsArrival = false
     @State private var anchorDate: Date
-    /// Points picked on the spot for this search only. Dropped with the screen.
+    /// Results picked on this screen: shown until the listener delivers one as the saved
+    /// point, or for this search only when nothing was saved. Dropped with the screen.
     @State private var fromCandidate: PlaceResult?
     @State private var toCandidate: PlaceResult?
+    @State private var fromOutcome: TravelPickOutcome?
+    @State private var toOutcome: TravelPickOutcome?
     @State private var picking: Side?
     @State private var search = TravelSearch(router: MapKitTravelRouter())
 
@@ -67,10 +76,43 @@ struct TravelView: View {
         side == .from ? fromCandidate : toCandidate
     }
 
-    private func endpoint(_ side: Side) -> TravelEndpoint? {
+    private func setCandidate(_ result: PlaceResult?, _ side: Side) {
+        if side == .from { fromCandidate = result } else { toCandidate = result }
+    }
+
+    private func outcome(_ side: Side) -> TravelPickOutcome? {
+        side == .from ? fromOutcome : toOutcome
+    }
+
+    private func setOutcome(_ outcome: TravelPickOutcome?, _ side: Side) {
+        if side == .from { fromOutcome = outcome } else { toOutcome = outcome }
+    }
+
+    /// What the Event and its Building hold, as the listener delivers them.
+    private func stored(_ side: Side) -> TravelEndpoint? {
         guard let event = event(side) else { return nil }
-        if let candidate = candidate(side) { return .candidate(candidate) }
         return TravelEndpoint.resolve(event: event, buildings: session.buildings)
+    }
+
+    private func endpoint(_ side: Side) -> TravelEndpoint? {
+        guard let stored = stored(side) else { return nil }
+        guard let candidate = candidate(side) else { return stored }
+        // A picked result stays on screen until the listener delivers the Event with it
+        // as the saved point; one that was not saved stays for this search.
+        if case .savedPlace(let placeID) = stored, candidate.identifier == placeID { return stored }
+        return .candidate(candidate)
+    }
+
+    /// The Building's place, whatever the Event's own setting: what "Back to the
+    /// building's place" returns to.
+    private func buildingDefault(_ side: Side) -> TravelEndpoint? {
+        guard let event = event(side) else { return nil }
+        return TravelEndpoint.buildingDefault(event: event, buildings: session.buildings)
+    }
+
+    private func writeStatus(_ side: Side) -> TravelPointWriteTracker.Status? {
+        guard let event = event(side) else { return nil }
+        return session.travelPointWrites.status(for: event.id)
     }
 
     private var anchor: TravelAnchor {
@@ -87,10 +129,10 @@ struct TravelView: View {
         )
     }
 
-    /// The point for one side, once its linked place is fetched or a candidate is picked.
+    /// The point for one side, once its place is fetched or a result is picked.
     private func point(_ side: Side) -> TravelPoint? {
         switch endpoint(side) {
-        case .linkedPlace(let placeID, _, _):
+        case .linkedPlace(let placeID, _, _), .savedPlace(let placeID):
             guard let place = session.places.place(for: placeID) else { return nil }
             return TravelPoint(name: place.name ?? "", latitude: place.latitude, longitude: place.longitude, placeID: placeID)
         case .candidate(let result):
@@ -98,15 +140,18 @@ struct TravelView: View {
                 name: result.name.isEmpty ? result.address : result.name,
                 latitude: result.latitude, longitude: result.longitude, placeID: result.identifier
             )
-        case .unresolved, nil:
+        case .savedQuery, .unreadableSetting, .unresolved, nil:
             return nil
         }
     }
 
-    private var linkedPlaceIDs: Set<String> {
+    /// Place IDs fetched while shown: linked Buildings' and saved points'.
+    private var heldPlaceIDs: Set<String> {
         Set([endpoint(.from), endpoint(.to)].compactMap { endpoint in
-            if case .linkedPlace(let placeID, _, _) = endpoint { return placeID }
-            return nil
+            switch endpoint {
+            case .linkedPlace(let placeID, _, _), .savedPlace(let placeID): placeID
+            default: nil
+            }
         })
     }
 
@@ -141,10 +186,12 @@ struct TravelView: View {
             }
             .onChange(of: fromID) {
                 fromCandidate = nil
+                fromOutcome = nil
                 resetAnchorDate()
             }
             .onChange(of: toID) {
                 toCandidate = nil
+                toOutcome = nil
                 resetAnchorDate()
             }
             .onChange(of: anchorIsArrival) { resetAnchorDate() }
@@ -153,15 +200,23 @@ struct TravelView: View {
             .onChange(of: key) {
                 if search.isSearching { search.cancel() }
             }
+            // A rejected save: the listener restores the stored setting, and the picked
+            // result is no longer shown as if it were the point.
+            .onChange(of: writeStatus(.from)) { _, status in
+                if status == .failed { fromCandidate = nil }
+            }
+            .onChange(of: writeStatus(.to)) { _, status in
+                if status == .failed { toCandidate = nil }
+            }
             .sheet(item: $picking) { side in
-                TravelCandidatePicker(hint: endpoint(side)?.hint ?? "") { result in
-                    if side == .from { fromCandidate = result } else { toCandidate = result }
+                TravelCandidatePicker(source: endpoint(side)?.querySource ?? .empty) { result, outcome in
+                    apply(outcome, result: result, to: side)
                 }
             }
-            // Screen interest in the linked places: fetched while shown, released after.
-            .task(id: linkedPlaceIDs) {
-                guard !linkedPlaceIDs.isEmpty else { return }
-                await session.places.hold(linkedPlaceIDs)
+            // Screen interest in the places: fetched while shown, released after.
+            .task(id: heldPlaceIDs) {
+                guard !heldPlaceIDs.isEmpty else { return }
+                await session.places.hold(heldPlaceIDs)
             }
             .onDisappear { search.cancel() }
         }
@@ -173,6 +228,31 @@ struct TravelView: View {
         } else if let from = fromEvent {
             anchorDate = from.endDate
         }
+    }
+
+    /// What the picker decided: a Place ID or typed search text is written to the Event
+    /// unless it already holds the same; a result used for this search only writes nothing.
+    private func apply(_ outcome: TravelPickOutcome, result: PlaceResult, to side: Side) {
+        guard let event = event(side) else { return }
+        switch outcome {
+        case .savePlace(let id):
+            if event.travelPoint != .place(id: id) { session.setTravelPoint(.place(id: id), for: event) }
+        case .saveQuery(let text):
+            if event.travelPoint != .query(text) { session.setTravelPoint(.query(text), for: event) }
+        case .thisSearchOnly:
+            break
+        }
+        setCandidate(result, side)
+        setOutcome(outcome, side)
+    }
+
+    /// Clears the Event's travel point (its own two-field update); the Building's place
+    /// or nothing is used again. Sent only when the listener shows a setting to clear.
+    private func clearSetting(_ side: Side) {
+        guard let event = event(side), event.travelPoint != nil else { return }
+        session.setTravelPoint(nil, for: event)
+        setCandidate(nil, side)
+        setOutcome(nil, side)
     }
 
     // MARK: Sections
@@ -205,9 +285,7 @@ struct TravelView: View {
         } header: {
             Text("Points")
         } footer: {
-            if fromCandidate != nil || toCandidate != nil {
-                Text("Only for this search. Not saved.")
-            }
+            Text("Only the ID of the chosen result, or the search text you typed, is saved. Names, addresses, coordinates, routes and travel times are not.")
         }
     }
 
@@ -223,10 +301,43 @@ struct TravelView: View {
             }
             switch endpoint(side) {
             case .linkedPlace(let placeID, _, _):
-                linkedPlaceRow(placeID)
-                Button("Pick another point for this search") { picking = side }
+                placeRow(placeID)
+                statusRow(side)
+                Button("Pick another point") { picking = side }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
+            case .savedPlace(let placeID):
+                placeRow(placeID)
+                Text("Saved point, fetched from its ID")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                if buildingDefault(side) != nil {
+                    Label("Using the chosen point instead of the building's place", systemImage: "pin")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                limitRow(side)
+                statusRow(side)
+                settingButtons(side, change: "Change")
+            case .savedQuery:
+                Label("Previous search text restored. Pick a candidate again (the candidate itself isn't saved).", systemImage: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                if buildingDefault(side) != nil {
+                    Label("Using the chosen point instead of the building's place", systemImage: "pin")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                limitRow(side)
+                statusRow(side)
+                settingButtons(side, change: "Pick a candidate")
+            case .unreadableSetting(let reason):
+                Label("The saved point can't be read (invalid format). The building's place is not used automatically.", systemImage: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(verbatim: reason)
+                    .font(.caption.monospaced())
+                    .foregroundStyle(.secondary)
+                statusRow(side)
+                settingButtons(side, change: "Pick a candidate")
             case .candidate(let result):
                 Label {
                     VStack(alignment: .leading, spacing: 2) {
@@ -238,10 +349,13 @@ struct TravelView: View {
                 } icon: {
                     Image(systemName: "mappin")
                 }
+                outcomeRow(side)
+                statusRow(side)
                 HStack(spacing: 16) {
                     Button("Change") { picking = side }
                     Button("Clear", role: .destructive) {
-                        if side == .from { fromCandidate = nil } else { toCandidate = nil }
+                        setCandidate(nil, side)
+                        setOutcome(nil, side)
                     }
                 }
                 .font(.subheadline)
@@ -249,6 +363,7 @@ struct TravelView: View {
             case .unresolved:
                 Label("No usable point yet. Pick a candidate for this search.", systemImage: "mappin.slash")
                     .foregroundStyle(.secondary)
+                statusRow(side)
                 Button("Pick a candidate") { picking = side }
                     .font(.subheadline)
                     .buttonStyle(.borderless)
@@ -260,8 +375,81 @@ struct TravelView: View {
         .multilineTextAlignment(.leading)
     }
 
+    /// Change or clear the Event's saved setting. The clear button says where it goes back
+    /// to: the Building's place when the Building has one, else nothing.
+    private func settingButtons(_ side: Side, change: LocalizedStringKey) -> some View {
+        let clearTitle: LocalizedStringKey = buildingDefault(side) != nil ? "Back to the building's place" : "Clear the point setting"
+        return HStack(spacing: 16) {
+            Button(change) { picking = side }
+            Button(clearTitle, role: .destructive) { clearSetting(side) }
+        }
+        .font(.subheadline)
+        .buttonStyle(.borderless)
+    }
+
+    /// A stored value over this version's bound: shown and used, but the Event cannot be
+    /// saved by the editor until it is cleared.
     @ViewBuilder
-    private func linkedPlaceRow(_ placeID: String) -> some View {
+    private func limitRow(_ side: Side) -> some View {
+        if let setting = event(side)?.travelPoint, setting.exceedsWriteLimit {
+            switch setting {
+            case .place:
+                Text("The saved place ID is longer than this version's limit (128 characters). It can be shown and used for routes, but clear it before saving edits to this event.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            case .query:
+                Text("The saved search text is longer than this version's limit (200 characters). Clear it before saving edits to this event.")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+            case .unreadable:
+                EmptyView()
+            }
+        }
+    }
+
+    /// The server's verdict on the latest write for this Event, never the local cache.
+    @ViewBuilder
+    private func statusRow(_ side: Side) -> some View {
+        switch writeStatus(side) {
+        case .syncing:
+            Label("Syncing…", systemImage: "arrow.triangle.2.circlepath")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .saved:
+            Label("Saved", systemImage: "checkmark.circle")
+                .font(.caption)
+                .foregroundStyle(.green)
+        case .failed:
+            Label("Save failed", systemImage: "xmark.octagon")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        case nil:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func outcomeRow(_ side: Side) -> some View {
+        switch outcome(side) {
+        case .saveQuery:
+            Text("Only the search text you typed is saved. You'll pick a candidate again next time.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .thisSearchOnly(.notSaved):
+            Text("Only for this search. Not saved.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        case .thisSearchOnly(.identifierTooLong):
+            Text("This result's ID is too long to save. It's used for this search only.")
+                .font(.caption)
+                .foregroundStyle(.orange)
+        case .savePlace, nil:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func placeRow(_ placeID: String) -> some View {
         let state = session.places.state(for: placeID)
         switch state {
         case .resolved(let place, _, _):
@@ -443,16 +631,19 @@ struct TravelView: View {
         }
     }
 
-    /// Hands both points to Apple Maps with the chosen mode. A linked place goes as
-    /// MapKit's own item when fetched, so Maps shows it by name.
+    /// Hands both points to Apple Maps with the chosen mode. A fetched place goes as
+    /// MapKit's own item, so Maps shows it by name.
     private func openInAppleMaps(mode: TravelMode) {
         guard let from = mapItem(.from), let to = mapItem(.to) else { return }
         MKMapItem.openMaps(with: [from, to], launchOptions: [MKLaunchOptionsDirectionsModeKey: MapKitTravelRouter.launchDirectionsMode(for: mode)])
     }
 
     private func mapItem(_ side: Side) -> MKMapItem? {
-        if case .linkedPlace(let placeID, _, _) = endpoint(side), let item = session.places.place(for: placeID)?.mapItem {
-            return item
+        switch endpoint(side) {
+        case .linkedPlace(let placeID, _, _), .savedPlace(let placeID):
+            if let item = session.places.place(for: placeID)?.mapItem { return item }
+        default:
+            break
         }
         guard let point = point(side) else { return nil }
         return MapKitTravelRouter.mapItem(for: point)
@@ -484,47 +675,46 @@ private struct RoutePreview: View {
 
 /// Picks a point for one travel search: the same two-section Apple Maps search as the
 /// Building editor, but any result can be chosen (a Place ID is not needed to route to
-/// it) and the choice lives only in the travel screen. Nothing is written anywhere.
+/// it). A result with an ID saves that ID; one without first asks, in its own field, for
+/// the search text to save, pre-filled only with the user's own words (never with the
+/// Event's auto-filled text or an Apple result's name or address) and skipped at will.
 private struct TravelCandidatePicker: View {
-    let hint: String
-    let onPick: (PlaceResult) -> Void
+    let source: TravelQuerySource
+    let onPick: (PlaceResult, TravelPickOutcome) -> Void
 
     @Environment(\.dismiss) private var dismiss
     @State private var query: String
-    @State private var search = PlaceSearch(searcher: MapKitPlaceSearcher())
+    @State private var search: PlaceSearch
+    /// A result without an ID, waiting for the user to say what, if anything, to save.
+    @State private var pendingPick: PlaceResult?
+    @State private var saveText = ""
 
-    init(hint: String, onPick: @escaping (PlaceResult) -> Void) {
-        self.hint = hint
+    init(source: TravelQuerySource, onPick: @escaping (PlaceResult, TravelPickOutcome) -> Void) {
+        self.source = source
         self.onPick = onPick
-        _query = State(initialValue: hint)
+        _query = State(initialValue: source.text)
+        var searcher: any PlaceSearching = MapKitPlaceSearcher()
+        #if DEBUG
+        searcher = TravelPointFaults.searcher(wrapping: searcher)
+        #endif
+        _search = State(initialValue: PlaceSearch(searcher: searcher))
+    }
+
+    private var saveIssue: TravelQueryProvenance.Issue? {
+        TravelQueryProvenance.issue(saveText)
     }
 
     var body: some View {
+        let title: LocalizedStringKey = pendingPick == nil ? "Pick the place for this search" : "Save the search text?"
         NavigationStack {
             Form {
-                Section {
-                    HStack {
-                        TextField("Search for a place or address", text: $query)
-                            .multilineTextAlignment(.leading)
-                            .submitLabel(.search)
-                            .onSubmit { search.search(query) }
-                        if search.isSearching {
-                            ProgressView()
-                        } else {
-                            Button("Search") { search.search(query) }
-                                .disabled(query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                .buttonStyle(.borderless)
-                        }
-                    }
-                } footer: {
-                    Text("Only for this search. Not saved.")
-                }
-                if search.isActive {
-                    resultSection(.pointOfInterest, title: "Places", empty: "No places found.", failed: "Couldn't search places.")
-                    resultSection(.address, title: "Addresses", empty: "No addresses found.", failed: "Couldn't search addresses.")
+                if let pending = pendingPick {
+                    saveSections(pending)
+                } else {
+                    searchSections
                 }
             }
-            .navigationTitle("Pick the place for this search")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -538,9 +728,95 @@ private struct TravelCandidatePicker: View {
             .onDisappear { search.cancel() }
             .task {
                 // The suggested query is searched for convenience; the user still picks.
-                if !hint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { search.search(hint) }
+                if !TravelQueryProvenance.trimmed(source.text).isEmpty { search.search(source.text) }
             }
         }
+    }
+
+    @ViewBuilder
+    private var searchSections: some View {
+        Section {
+            HStack {
+                TextField("Search for a place or address", text: $query)
+                    .multilineTextAlignment(.leading)
+                    .submitLabel(.search)
+                    .onSubmit { search.search(query) }
+                if search.isSearching {
+                    ProgressView()
+                } else {
+                    Button("Search") { search.search(query) }
+                        .disabled(TravelQueryProvenance.trimmed(query).isEmpty)
+                        .buttonStyle(.borderless)
+                }
+            }
+        } footer: {
+            Text("Used for searching only. What is saved is decided after you pick a result.")
+        }
+        if search.isActive {
+            resultSection(.pointOfInterest, title: "Places", empty: "No places found.", failed: "Couldn't search places.")
+            resultSection(.address, title: "Addresses", empty: "No addresses found.", failed: "Couldn't search addresses.")
+        }
+    }
+
+    /// The separate field for the search text to save. It starts with the user's own text
+    /// only (`TravelQueryProvenance.prefill`); there is no way for the chosen result's
+    /// name or address to get into it other than the user typing.
+    @ViewBuilder
+    private func saveSections(_ result: PlaceResult) -> some View {
+        Section {
+            resultLabel(result)
+        } header: {
+            Text("Chosen result")
+        }
+        Section {
+            TextField("Search text to save", text: $saveText, axis: .vertical)
+                .lineLimit(1...3)
+            if saveIssue == .tooLong {
+                Text("The search text is too long (200 characters max).")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+            }
+        } footer: {
+            VStack(alignment: .leading, spacing: 4) {
+                Text("This result has no ID, so only the search text you type can be saved. Next time it comes back into the search field and you pick a candidate again.")
+                if saveIssue == .empty, source != .empty {
+                    Text("The search text is auto-filled and isn't saved. Type the search text yourself to save it.")
+                }
+            }
+        }
+        Section {
+            Button("Save and use") {
+                onPick(result, .saveQuery(TravelQueryProvenance.trimmed(saveText)))
+                dismiss()
+            }
+            .disabled(saveIssue != nil)
+            Button("Use for this search only") {
+                onPick(result, .thisSearchOnly(.notSaved))
+                dismiss()
+            }
+            Button("Back") { pendingPick = nil }
+        }
+    }
+
+    /// A result with an ID decides itself; one without goes to the save step.
+    private func choose(_ result: PlaceResult) {
+        if let outcome = TravelQueryProvenance.outcome(for: result) {
+            onPick(result, outcome)
+            dismiss()
+        } else {
+            saveText = TravelQueryProvenance.prefill(source: source, searchText: query)
+            pendingPick = result
+        }
+    }
+
+    private func resultLabel(_ result: PlaceResult) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(verbatim: result.name.isEmpty ? result.address : result.name).foregroundStyle(.primary)
+            if !result.name.isEmpty, !result.address.isEmpty {
+                Text(verbatim: result.address).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .multilineTextAlignment(.leading)
     }
 
     private func resultSection(
@@ -563,16 +839,9 @@ private struct TravelCandidatePicker: View {
             case .results(let results):
                 ForEach(results) { result in
                     Button {
-                        onPick(result)
-                        dismiss()
+                        choose(result)
                     } label: {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: result.name.isEmpty ? result.address : result.name).foregroundStyle(.primary)
-                            if !result.name.isEmpty, !result.address.isEmpty {
-                                Text(verbatim: result.address).font(.caption).foregroundStyle(.secondary)
-                            }
-                        }
-                        .multilineTextAlignment(.leading)
+                        resultLabel(result)
                     }
                 }
             }

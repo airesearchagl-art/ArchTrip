@@ -41,7 +41,12 @@ struct TripDashboardView: View {
                 hasLoadedEvents = true
                 switch result {
                 case .success(let snapshot):
+                    #if DEBUG
+                    // Simulator-check hook for travel point faults; a no-op unless launched with it.
+                    events = TravelPointFaults.applied(to: snapshot.items)
+                    #else
                     events = snapshot.items
+                    #endif
                     eventFailures = snapshot.failures
                     eventsLoadFailed = false
                 case .failure:

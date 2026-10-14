@@ -451,6 +451,16 @@
         }
       }
     },
+    "Back to the building's place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築の場所に戻す"
+          }
+        }
+      }
+    },
     "Building" : {
       "localizations" : {
         "ja" : {
@@ -681,12 +691,32 @@
         }
       }
     },
+    "Chosen result" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "選んだ候補"
+          }
+        }
+      }
+    },
     "Clear" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "クリア"
+          }
+        }
+      }
+    },
+    "Clear the point setting" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "地点設定を解除"
           }
         }
       }
@@ -1959,12 +1989,32 @@
         }
       }
     },
+    "Only the ID of the chosen result, or the search text you typed, is saved. Names, addresses, coordinates, routes and travel times are not." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存されるのは選んだ候補のIDか、入力した検索語だけです。名称・住所・座標・経路・所要時間は保存しません。"
+          }
+        }
+      }
+    },
     "Only the place's ID is saved. Its name, address and map are fetched from Apple Maps when shown." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "保存するのは場所のIDだけです。名称・住所・地図は表示時にApple Mapsから取得します。"
+          }
+        }
+      }
+    },
+    "Only the search text you typed is saved. You'll pick a candidate again next time." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "入力した検索語だけを保存しています。次回は候補を選び直す必要があります。"
           }
         }
       }
@@ -2029,12 +2079,12 @@
         }
       }
     },
-    "Pick another point for this search" : {
+    "Pick another point" : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "この検索では別の地点を使う"
+            "value" : "別の地点を選ぶ"
           }
         }
       }
@@ -2125,6 +2175,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "事前確認"
+          }
+        }
+      }
+    },
+    "Previous search text restored. Pick a candidate again (the candidate itself isn't saved)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "前回の検索語を復元しました。候補を選び直してください（候補は保存されていません）。"
           }
         }
       }
@@ -2279,6 +2339,56 @@
         }
       }
     },
+    "Save and use" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存して使う"
+          }
+        }
+      }
+    },
+    "Save failed" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存失敗"
+          }
+        }
+      }
+    },
+    "Save the search text?" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索語を保存しますか？"
+          }
+        }
+      }
+    },
+    "Saved" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存完了"
+          }
+        }
+      }
+    },
+    "Saved point, fetched from its ID" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みの地点（IDから再取得）"
+          }
+        }
+      }
+    },
     "Search" : {
       "localizations" : {
         "ja" : {
@@ -2315,6 +2425,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "経路を検索"
+          }
+        }
+      }
+    },
+    "Search text to save" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存する検索語"
           }
         }
       }
@@ -2599,6 +2719,16 @@
         }
       }
     },
+    "Syncing…" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "同期中…"
+          }
+        }
+      }
+    },
     "The building's name is used as the title. Enter the location yourself." : {
       "localizations" : {
         "ja" : {
@@ -2695,6 +2825,56 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "経路検索がタイムアウトしました。"
+          }
+        }
+      }
+    },
+    "The saved place ID is longer than this version's limit (128 characters). It can be shown and used for routes, but clear it before saving edits to this event." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みの場所IDがこのバージョンの上限（128文字）を超えています。表示と経路検索には使えますが、この予定の編集を保存するには解除が必要です。"
+          }
+        }
+      }
+    },
+    "The saved point can't be read (invalid format). The building's place is not used automatically." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みの地点設定を読み込めません（形式が不正）。建築の場所には自動で戻しません。"
+          }
+        }
+      }
+    },
+    "The saved search text is longer than this version's limit (200 characters). Clear it before saving edits to this event." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "保存済みの検索語がこのバージョンの上限（200文字）を超えています。この予定の編集を保存するには解除が必要です。"
+          }
+        }
+      }
+    },
+    "The search text is auto-filled and isn't saved. Type the search text yourself to save it." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索語は自動入力のため保存されません。保存するには検索語を自分で入力してください。"
+          }
+        }
+      }
+    },
+    "The search text is too long (200 characters max)." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索語が長すぎます（200文字まで）。"
           }
         }
       }
@@ -2869,6 +3049,16 @@
         }
       }
     },
+    "This event's travel point can't be saved by this version. Clear the point setting in the travel screen or update the app." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この予定の地点設定はこのバージョンでは保存できません。移動画面で地点設定を解除するか、アプリを更新してください。"
+          }
+        }
+      }
+    },
     "This iPhone only" : {
       "localizations" : {
         "ja" : {
@@ -2905,6 +3095,26 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "この検索結果は場所の関連付けに対応していません。"
+          }
+        }
+      }
+    },
+    "This result has no ID, so only the search text you type can be saved. Next time it comes back into the search field and you pick a candidate again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この候補にはIDがないため、保存できるのは入力した検索語だけです。次回は検索語が検索欄に戻り、候補を選び直す必要があります。"
+          }
+        }
+      }
+    },
+    "This result's ID is too long to save. It's used for this search only." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この候補のIDは長すぎて保存できません。この検索だけに使います。"
           }
         }
       }
@@ -3199,12 +3409,42 @@
         }
       }
     },
+    "Use for this search only" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "この検索だけに使う"
+          }
+        }
+      }
+    },
     "Use the email and password set up on your other iPhone. Your data is shared through this account." : {
       "localizations" : {
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
             "value" : "もう一方のiPhoneで設定したメールアドレスとパスワードを使用してください。データはこのアカウントを通じて共有されます。"
+          }
+        }
+      }
+    },
+    "Used for searching only. What is saved is decided after you pick a result." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "検索にだけ使います。保存される内容は候補を選んだ後に決まります。"
+          }
+        }
+      }
+    },
+    "Using the chosen point instead of the building's place" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "建築の場所ではなく、選んだ地点を使用中"
           }
         }
       }

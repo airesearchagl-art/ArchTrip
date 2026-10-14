@@ -82,6 +82,11 @@ struct EventEditorView: View {
             || trimmedNote.count > Event.noteMaxLength {
             return "Some fields are too long."
         }
+        // The rules validate the stored document together with the update, so a travel
+        // point this version cannot write blocks the whole save until it is cleared.
+        if existing?.travelPointIsWritable == false {
+            return "This event's travel point can't be saved by this version. Clear the point setting in the travel screen or update the app."
+        }
         return nil
     }
 
@@ -345,7 +350,7 @@ struct EventEditorView: View {
             returnMinutes: type == .car && isAllDay && hasReturnTime
                 ? AllDaySchedule.minutes(of: returnTime, calendar: calendar) : nil
         )
-        guard event.isValid, !hasSaved else { return }
+        guard event.isValid, !hasSaved, existing?.travelPointIsWritable != false else { return }
         hasSaved = true
         if let existing {
             session.updateEvent(event, replacing: existing)

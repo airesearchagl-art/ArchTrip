@@ -39,37 +39,82 @@ nonisolated struct TravelPoint: Hashable, Sendable {
 }
 
 /// Where one side of the search is. Decided by what the Event and its Building hold,
-/// never by guessing: a Building without a Place ID gives no point, and the user picks a
-/// candidate on the spot. Stored coordinates of unknown provenance are not used (D-022).
+/// never by guessing: the Event's own travel point first (the user's explicit choice,
+/// kept until they clear it), then the Building's Place ID, else nothing, and the user
+/// picks a result on the spot. Stored coordinates of unknown provenance are not used
+/// (D-022), and an unreadable travel point never falls back to the Building's place.
 nonisolated enum TravelEndpoint: Hashable, Sendable {
     /// The Event's Building is linked to an Apple Maps place by ID; the place is fetched
-    /// while shown (`PlaceDirectory`).
+    /// while shown (`PlaceDirectory`). Nothing is stored on the Event for it.
     case linkedPlace(placeID: String, buildingID: String, buildingUpdatedAt: Date)
-    /// A search result the user picked for this search only. Never saved anywhere.
+    /// The Event's stored travel point is a Place ID the user picked. Fetched while shown,
+    /// like a linked place; takes precedence over the Building's place.
+    case savedPlace(placeID: String)
+    /// The Event's stored travel point is the search text the user typed: restored into
+    /// the picker, and nothing is chosen until the user picks a result again.
+    case savedQuery(String)
+    /// The Event's stored travel point cannot be read. No point, and no fallback to the
+    /// Building's place; the user clears or replaces it.
+    case unreadableSetting(reason: String)
+    /// A search result picked on this screen. Shown until the listener delivers it as the
+    /// Event's saved point, or for this search only when nothing was saved.
     case candidate(PlaceResult)
     /// Nothing usable yet. `hint` is only a suggested query (the Event's location text or
     /// its Building's name); no result is chosen automatically.
     case unresolved(hint: String)
 
     static func resolve(event: Event, buildings: [Building]) -> TravelEndpoint {
-        let building = event.buildingId.flatMap { id in buildings.first { $0.id == id } }
-        if let building, let placeID = building.applePlaceId {
-            return .linkedPlace(placeID: placeID, buildingID: building.id, buildingUpdatedAt: building.updatedAt)
+        switch event.travelPoint {
+        case .place(let id):
+            return .savedPlace(placeID: id)
+        case .query(let text):
+            return .savedQuery(text)
+        case .unreadable(let reason):
+            return .unreadableSetting(reason: reason)
+        case nil:
+            break
         }
+        if let linked = buildingDefault(event: event, buildings: buildings) {
+            return linked
+        }
+        let building = event.buildingId.flatMap { id in buildings.first { $0.id == id } }
         let hint = event.locationName.isEmpty ? (building?.name ?? "") : event.locationName
         return .unresolved(hint: hint)
     }
 
+    /// The Building's place, whatever the Event's own travel point: what "Back to the
+    /// building's place" returns to, and nil when the Building has no Place ID.
+    static func buildingDefault(event: Event, buildings: [Building]) -> TravelEndpoint? {
+        guard let building = event.buildingId.flatMap({ id in buildings.first { $0.id == id } }), let placeID = building.applePlaceId else {
+            return nil
+        }
+        return .linkedPlace(placeID: placeID, buildingID: building.id, buildingUpdatedAt: building.updatedAt)
+    }
+
     var isUsable: Bool {
-        if case .unresolved = self { return false }
-        return true
+        switch self {
+        case .linkedPlace, .savedPlace, .candidate: true
+        case .savedQuery, .unreadableSetting, .unresolved: false
+        }
     }
 
     var hint: String {
         switch self {
         case .unresolved(let hint): hint
+        case .savedQuery(let text): text
         case .candidate(let result): result.name.isEmpty ? result.address : result.name
-        case .linkedPlace: ""
+        case .linkedPlace, .savedPlace, .unreadableSetting: ""
+        }
+    }
+
+    /// Where the picker's search field starts from, with its provenance: the Event's own
+    /// text, Apple's text of a picked result, or the saved search text.
+    var querySource: TravelQuerySource {
+        switch self {
+        case .unresolved(let hint): hint.isEmpty ? .empty : .appText(hint)
+        case .savedQuery(let text): .saved(text)
+        case .candidate(let result): .candidate(result.name.isEmpty ? result.address : result.name)
+        case .linkedPlace, .savedPlace, .unreadableSetting: .empty
         }
     }
 }
