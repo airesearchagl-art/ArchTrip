@@ -68,6 +68,9 @@ nonisolated enum TripDeletion {
         /// The on-device record of the deletion could not be saved, so it does not start:
         /// without the record, a stop could not be resumed after a restart.
         case ledgerUnavailable
+        /// The on-device records exist but cannot be read; nothing starts and nothing is
+        /// written over them until a reload succeeds.
+        case ledgerUnreadable
         case other(domain: String, code: Int)
     }
 
@@ -226,6 +229,10 @@ final class TripDeletionRun {
     func check() {
         guard !isBusy else { return }
         let current = begin()
+        if let ledger, ledger.isUnreadable {
+            state = .blocked(.ledgerUnreadable)
+            return
+        }
         state = .checking
         task = Task {
             do {
@@ -270,6 +277,10 @@ final class TripDeletionRun {
         previouslyAcknowledged = existing?.acknowledgedEvents ?? 0
         do {
             try saveProgress(reason: "started")
+        } catch let error as TripDeletionLedgerError {
+            ledgerWarning = "records unreadable, nothing sent: \(error)"
+            state = .blocked(.ledgerUnreadable)
+            return
         } catch {
             ledgerWarning = "save before the first batch failed: \(error)"
             state = .blocked(.ledgerUnavailable)

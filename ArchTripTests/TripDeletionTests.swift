@@ -610,6 +610,86 @@ struct TripDeletionTests {
         #expect(record?.startedAt == Date(timeIntervalSince1970: 1_790_000_000), "the first attempt's start is kept")
     }
 
+    // MARK: A ledger that cannot be read (fail-visible)
+
+    private func validLedgerData(_ record: PendingTripDeletion, uid: String = "fixture-uid") -> Data {
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        return try! encoder.encode([uid: [record]])
+    }
+
+    @Test func anAbsentFileIsAnEmptyLedger() {
+        let ledger = ledger()
+        #expect(!ledger.isUnreadable && ledger.loadFailure == nil)
+        #expect(ledger.records(for: "fixture-uid").isEmpty)
+        #expect((try? ledger.record(PendingTripDeletion(tripID: "t", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 0, tripStatus: .present, reason: "started"), uid: "fixture-uid")) != nil)
+    }
+
+    /// Corrupt JSON: visible, nothing written over the file, no deletion starts; a reload
+    /// that still fails keeps it so; once the file reads again, the deletion resumes.
+    @Test func aCorruptFileIsVisibleKeptAndNeverOverwritten() async {
+        let file = ledgerFile()
+        try! FileManager.default.createDirectory(at: file.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let corrupt = Data("{\"fixture-uid\": [ not json".utf8)
+        try! corrupt.write(to: file)
+
+        let ledger = ledger(file)
+        #expect(ledger.isUnreadable)
+        #expect(ledger.records(for: "fixture-uid").isEmpty, "never shown as records")
+        let attempt = PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 0, tripStatus: .present, reason: "started")
+        #expect(throws: TripDeletionLedgerError.self) { try ledger.record(attempt, uid: "fixture-uid") }
+        #expect(throws: TripDeletionLedgerError.self) { try ledger.remove(tripID: "fixture-trip", uid: "fixture-uid") }
+        #expect(try! Data(contentsOf: file) == corrupt, "the file is kept byte for byte")
+
+        // No deletion starts: not even the server listing is requested.
+        let deleter = FakeDeleter()
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: true, eventIDs: ids(2)))]
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger, configuration: fast)
+        run.check()
+        #expect(run.state == .blocked(.ledgerUnreadable))
+        run.delete()
+        #expect(deleter.inventoryCalls == 0 && deleter.batches.isEmpty)
+
+        // Reload while the file is still corrupt: still unreadable, still untouched.
+        ledger.reload()
+        #expect(ledger.isUnreadable)
+        #expect(try! Data(contentsOf: file) == corrupt)
+
+        // The file reads again (a repaired copy with one stopped deletion): reload succeeds
+        // and that deletion resumes to a confirmed end.
+        // Whole seconds: the file holds ISO 8601 dates without fractions.
+        let stopped = PendingTripDeletion(tripID: "fixture-trip", startedAt: Date(timeIntervalSince1970: 1_790_000_000), updatedAt: Date(timeIntervalSince1970: 1_790_000_600), acknowledgedEvents: 2, tripStatus: .verifiedGone, reason: "batchFailed")
+        try! validLedgerData(stopped).write(to: file)
+        ledger.reload()
+        #expect(!ledger.isUnreadable)
+        #expect(ledger.records(for: "fixture-uid") == [stopped])
+        deleter.inventories = [.success(TripDeletionInventory(tripExists: false, eventIDs: []))]
+        run.checkAgain()
+        await settle("confirmed empty after the reload") { run.state == .done }
+        #expect(deleter.batches.isEmpty)
+        #expect(ledger.records(for: "fixture-uid").isEmpty && reread(file) == nil)
+    }
+
+    /// A read failure (not a decode failure) is treated the same way.
+    @Test func aReadFailureIsVisibleAndWritesAreRefused() async {
+        struct UnreadableStorage: TripDeletionLedgerStorage {
+            var saves = 0
+            func load() throws -> Data? { throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoPermissionError) }
+            func save(_ data: Data?) throws { Issue.record("a save must not happen while the file is unreadable") }
+        }
+        let ledger = TripDeletionLedger(storage: UnreadableStorage())
+        #expect(ledger.isUnreadable)
+        #expect(throws: TripDeletionLedgerError.self) {
+            try ledger.record(PendingTripDeletion(tripID: "t", startedAt: Date(), updatedAt: Date(), acknowledgedEvents: 0, tripStatus: .present, reason: "started"), uid: "fixture-uid")
+        }
+        let deleter = FakeDeleter()
+        let run = TripDeletionRun(deleter: deleter, uid: "fixture-uid", tripID: "fixture-trip", ledger: ledger, configuration: fast)
+        run.check()
+        #expect(run.state == .blocked(.ledgerUnreadable))
+        run.delete()
+        #expect(deleter.inventoryCalls == 0 && deleter.batches.isEmpty)
+    }
+
     // MARK: Stale replies
 
     @Test func aCancelledCheckIgnoresItsLateReply() async {

@@ -55,20 +55,34 @@ struct FileTripDeletionLedgerStorage: TripDeletionLedgerStorage {
     }
 }
 
+nonisolated enum TripDeletionLedgerError: Error, Equatable {
+    /// The stored file exists but could not be read or decoded. It is kept as it is;
+    /// nothing is written over it and no deletion starts until a reload succeeds.
+    case unreadable(String)
+}
+
 /// Local, per-account ledger of deletions in progress or stopped (RF-03). Nothing here
 /// goes to Firestore, so no Rules or model change is involved. Every change is saved
 /// before the call returns; a save that fails is thrown to the caller, which must not
-/// start a deletion without its record.
+/// start a deletion without its record. A file that cannot be read is fail-visible: the
+/// ledger reports it, keeps the file untouched, refuses every write, and offers a reload.
 @Observable
 final class TripDeletionLedger {
     private let storage: any TripDeletionLedgerStorage
     private(set) var recordsByUser: [String: [PendingTripDeletion]] = [:]
-    /// Set when the stored file could not be read; the ledger then starts empty and the
-    /// next save replaces the file.
+    /// Non-nil when a stored file exists but could not be read or decoded (an absent
+    /// file is simply an empty ledger). While set, no record is written or erased.
     private(set) var loadFailure: String?
+
+    var isUnreadable: Bool { loadFailure != nil }
 
     init(storage: any TripDeletionLedgerStorage = FileTripDeletionLedgerStorage.default) {
         self.storage = storage
+        load()
+    }
+
+    /// Reads the file again; the failure clears only if it now reads and decodes.
+    func reload() {
         load()
     }
 
@@ -77,6 +91,7 @@ final class TripDeletionLedger {
     }
 
     func record(_ record: PendingTripDeletion, uid: String) throws {
+        if let loadFailure { throw TripDeletionLedgerError.unreadable(loadFailure) }
         var records = recordsByUser[uid] ?? []
         if let index = records.firstIndex(where: { $0.tripID == record.tripID }) {
             records[index] = record
@@ -90,6 +105,7 @@ final class TripDeletionLedger {
     }
 
     func remove(tripID: String, uid: String) throws {
+        if let loadFailure { throw TripDeletionLedgerError.unreadable(loadFailure) }
         guard var records = recordsByUser[uid] else { return }
         records.removeAll { $0.tripID == tripID }
         var updated = recordsByUser
@@ -100,11 +116,20 @@ final class TripDeletionLedger {
 
     private func load() {
         do {
-            guard let data = try storage.load() else { return }
+            guard let data = try storage.load() else {
+                // No file: an empty ledger, nothing to repair.
+                recordsByUser = [:]
+                loadFailure = nil
+                return
+            }
             let decoder = JSONDecoder()
             decoder.dateDecodingStrategy = .iso8601
             recordsByUser = try decoder.decode([String: [PendingTripDeletion]].self, from: data)
+            loadFailure = nil
         } catch {
+            // Read failure or corrupt JSON: keep the file, show nothing as if it were
+            // records, and refuse writes until a reload succeeds.
+            recordsByUser = [:]
             loadFailure = String(describing: error)
         }
     }

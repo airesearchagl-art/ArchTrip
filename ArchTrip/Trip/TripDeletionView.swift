@@ -124,7 +124,17 @@ struct TripDeletionView: View {
         case .blocked(let problem):
             Label(Self.text(for: problem), systemImage: "xmark.octagon")
                 .foregroundStyle(.orange)
-            Button("Check again") { run?.checkAgain() }
+            if problem == .ledgerUnreadable {
+                Text("The record file is kept as it is. Reload to try again.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Button("Reload") {
+                    session.deletionLedger.reload()
+                    run?.checkAgain()
+                }
+            } else {
+                Button("Check again") { run?.checkAgain() }
+            }
         case .ready(let summary):
             Button(role: .destructive) {
                 run?.delete()
@@ -229,6 +239,7 @@ struct TripDeletionView: View {
         case .noReply: "No reply from the server. The deletion may still complete once connected. Check again."
         case .tooManyEvents(let count): "This trip has too many events to delete here (\(count))."
         case .ledgerUnavailable: "Can't save the deletion record on this device, so the deletion won't start."
+        case .ledgerUnreadable: "The deletion records can't be read. Deletions can't be started."
         case .other(let domain, let code): "Couldn't delete (\(domain) \(code))."
         }
     }

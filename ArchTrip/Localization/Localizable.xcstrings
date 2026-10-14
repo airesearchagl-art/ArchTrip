@@ -1939,6 +1939,16 @@
         }
       }
     },
+    "Reload" : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "再読込み"
+          }
+        }
+      }
+    },
     "Rental car" : {
       "localizations" : {
         "ja" : {
@@ -2329,6 +2339,16 @@
         }
       }
     },
+    "The deletion records can't be read. Deletions can't be started." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "削除記録を読み込めません。削除を開始できません。"
+          }
+        }
+      }
+    },
     "The email or password is incorrect." : {
       "localizations" : {
         "ja" : {
@@ -2365,6 +2385,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "パスワードが一致しません。"
+          }
+        }
+      }
+    },
+    "The record file is kept as it is. Reload to try again." : {
+      "localizations" : {
+        "ja" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "記録ファイルはそのまま保持されています。再読込みでやり直せます。"
           }
         }
       }

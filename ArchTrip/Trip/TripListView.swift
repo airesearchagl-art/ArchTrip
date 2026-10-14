@@ -13,6 +13,18 @@ struct TripListView: View {
             if !session.tripFailures.isEmpty {
                 DecodeFailureSection(failures: session.tripFailures)
             }
+            // RF-03: a record file that cannot be read is shown, kept as it is, and never
+            // replaced; deletions do not start until a reload succeeds.
+            if session.deletionLedger.isUnreadable {
+                Section {
+                    Label("The deletion records can't be read. Deletions can't be started.", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text("The record file is kept as it is. Reload to try again.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Button("Reload") { session.deletionLedger.reload() }
+                }
+            }
             // Deletions that stopped after something was sent stay here, across screens
             // and restarts, until a server listing confirms nothing is left.
             if !pending.isEmpty {
@@ -50,7 +62,7 @@ struct TripListView: View {
         .overlay {
             if !session.hasLoadedTrips {
                 ProgressView()
-            } else if session.trips.isEmpty && session.tripFailures.isEmpty && !session.tripsLoadFailed && pending.isEmpty {
+            } else if session.trips.isEmpty && session.tripFailures.isEmpty && !session.tripsLoadFailed && pending.isEmpty && !session.deletionLedger.isUnreadable {
                 ContentUnavailableView {
                     Label("No trips yet", systemImage: "suitcase")
                 } description: {
